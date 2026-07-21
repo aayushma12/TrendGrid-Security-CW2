@@ -1,0 +1,90 @@
+/* ============================================================================
+   NDH TrendGrid — CART / CHECKOUT LUXURY ENHANCEMENTS
+   Loaded after pages.css. Sticky summary, free-shipping progress, savings,
+   coupon success and delivery estimate. Scoped under .shop.
+   ========================================================================== */
+
+/* sticky order summary on desktop */
+@media (min-width: 1025px) {
+  .shop .cart-layout { align-items: start; }
+  .shop .summary { position: sticky; top: 96px; }
+}
+
+/* summary as a floating luxury card */
+.shop .summary {
+  background: var(--color-surface);
+  border: 1px solid var(--lux-line);
+  border-radius: 24px;
+  padding: 1.6rem 1.5rem;
+  box-shadow: var(--lux-shadow);
+}
+.shop .summary h2 { font-family: var(--lux-serif); font-size: 1.5rem; margin-bottom: 1rem; }
+
+/* savings highlight row */
+.shop .summary__row.is-save span:last-child,
+.shop .summary__row.is-discount span:last-child { color: var(--lux-gold-deep); font-weight: 600; }
+.shop .lux-save-badge {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  background: var(--lux-gold-soft); color: var(--lux-gold-deep);
+  font-size: 0.74rem; font-weight: 600; letter-spacing: 0.03em;
+  padding: 0.3rem 0.7rem; border-radius: 999px; margin-bottom: 1rem;
+}
+
+/* free-shipping progress */
+.shop .lux-ship {
+  margin: 0.4rem 0 1.1rem; padding: 0.9rem 1rem;
+  background: var(--color-surface-elevated); border-radius: 16px;
+}
+.shop .lux-ship__label { font-size: 0.82rem; color: var(--color-text-muted); display: flex; gap: 0.45rem; align-items: center; }
+.shop .lux-ship__label strong { color: var(--lux-ink); }
+.shop .lux-ship__track { height: 7px; border-radius: 999px; background: var(--lux-line); margin-top: 0.6rem; overflow: hidden; }
+.shop .lux-ship__fill {
+  height: 100%; border-radius: 999px;
+  background: linear-gradient(90deg, var(--lux-gold), var(--lux-gold-deep));
+  transition: width 0.7s var(--lux-ease, cubic-bezier(0.22,1,0.36,1));
+}
+.shop .lux-ship.is-free .lux-ship__fill { width: 100% !important; }
+.shop .lux-ship.is-free .lux-ship__label { color: var(--lux-gold-deep); font-weight: 600; }
+
+/* delivery estimate */
+.shop .lux-deliver {
+  display: flex; gap: 0.6rem; align-items: center;
+  font-size: 0.82rem; color: var(--color-text-muted);
+  margin: 1rem 0; padding-top: 1rem; border-top: 1px solid var(--lux-line);
+}
+.shop .lux-deliver svg { color: var(--lux-gold-deep); flex: none; }
+.shop .lux-deliver strong { color: var(--lux-ink); }
+
+/* secure-checkout note */
+.shop .lux-secure {
+  display: flex; gap: 0.4rem; align-items: center; justify-content: center;
+  font-size: 0.74rem; color: var(--color-text-muted); margin-top: 0.85rem;
+}
+
+/* coupon success chip + interaction */
+.shop .coupon { position: relative; }
+.shop .lux-coupon-ok {
+  display: inline-flex; align-items: center; gap: 0.4rem; margin-top: 0.6rem;
+  font-size: 0.78rem; color: var(--lux-gold-deep); font-weight: 600;
+  animation: luxFadeUp 0.4s var(--lux-ease, cubic-bezier(0.22,1,0.36,1));
+}
+
+/* cart line micro-interactions */
+.shop .cart-item__name { transition: color 0.3s ease; }
+.shop .cart-table tbody tr:hover .cart-item__name { color: var(--lux-gold-deep); }
+.shop .cart-remove { transition: transform 0.25s ease, color 0.25s ease; }
+.shop .cart-remove:hover { transform: rotate(90deg) scale(1.1); color: var(--color-error); }
+.shop .cart-item .pimg { border-radius: 14px; }
+.shop .cart-table tbody tr {
+  animation: luxFadeUp 0.5s var(--lux-ease, cubic-bezier(0.22,1,0.36,1)) backwards;
+}
+.shop .cart-table tbody tr:nth-child(2) { animation-delay: 0.06s; }
+.shop .cart-table tbody tr:nth-child(3) { animation-delay: 0.12s; }
+.shop .cart-table tbody tr:nth-child(4) { animation-delay: 0.18s; }
+.shop .cart-table tbody tr:nth-child(n+5) { animation-delay: 0.24s; }
+
+/* qty stepper as a pill */
+.shop .qty {
+  border: 1px solid var(--lux-line); border-radius: 999px;
+  background: var(--color-surface); overflow: hidden;
+}

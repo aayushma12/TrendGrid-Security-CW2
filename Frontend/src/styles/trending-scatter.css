@@ -1,0 +1,161 @@
+/* ============================================================================
+   NDH TrendGrid — TRENDING SCATTER
+   ----------------------------------------------------------------------------
+   Same three-layer scatter as the hero, triggered on scroll-into-view:
+     .trend-scatter__card   -> intro scatter + blur-in (.is-in)
+     .trend-scatter__float  -> perpetual idle bob (reuses @keyframes artFloat)
+     .trend-scatter__drift  -> scroll + pointer parallax (ParallaxMount vars)
+   ========================================================================== */
+
+.shop .trend-scatter {
+  position: relative;
+  overflow: hidden;
+  padding-block: clamp(4rem, 3rem + 6vw, 8rem);
+}
+
+.shop .trend-scatter__inner {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  align-items: center;
+  gap: clamp(1.5rem, 1rem + 3vw, 4rem);
+}
+
+/* ------------------------------------------------------------------- copy */
+
+.shop .trend-scatter__title { margin: 0.3rem 0 0; }
+.shop .trend-scatter__title-accent { color: var(--lux-gold); font-style: italic; }
+.shop .trend-scatter__lead {
+  margin: 1rem 0 1.75rem;
+  max-width: 30rem;
+  color: var(--lux-ink-soft);
+  line-height: 1.6;
+}
+
+/* ------------------------------------------------------------------ stage */
+
+.shop .trend-scatter__stage {
+  position: relative;
+  height: clamp(22rem, 18rem + 20vw, 32rem);
+}
+
+.shop .trend-scatter__img {
+  object-fit: cover;
+  transition: transform 0.7s var(--lux-ease);
+}
+
+/* layer 3 — parallax drift */
+.shop .trend-scatter__drift {
+  position: absolute;
+  inset: 0;
+  display: block;
+  border-radius: 18px;
+  overflow: hidden;
+  background: var(--lux-ivory);
+  box-shadow: 0 16px 34px rgba(47, 36, 29, 0.18);
+  transform: translate(var(--px, 0px), calc(var(--py, 0px) + var(--pyp, 0px)));
+  transition: box-shadow 0.45s var(--lux-ease);
+}
+
+/* layer 2 — idle float (paused until in view) */
+.shop .trend-scatter__float {
+  position: absolute;
+  inset: 0;
+  animation: artFloat calc(5s + var(--i, 0) * 0.4s) ease-in-out infinite;
+  animation-delay: calc(var(--i, 0) * -0.6s);
+  animation-play-state: paused;
+}
+.shop .trend-scatter.is-in .trend-scatter__float { animation-play-state: running; }
+
+/* layer 1 — scroll-linked deck deal-out
+   The cards start as a stacked deck and deal/shuffle out into the fan as the
+   section travels through the viewport. The per-card transform + opacity are
+   written each frame from JS (see TrendingScatter.tsx); the rule below is just
+   the deck rest pose used before JS runs / as a no-JS fallback. */
+.shop .trend-scatter__card {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: clamp(8rem, 6rem + 7vw, 12rem);
+  aspect-ratio: 3 / 4;
+  margin: 0;
+  /* deck stacking order: higher index sits on top and deals first */
+  z-index: calc(10 + var(--i));
+  /* deck rest pose (per-card offset + lean so the stack's edges peek out) */
+  transform:
+    translate(-50%, -50%)
+    translate(calc(var(--i) * 4px), calc(var(--i) * -5px))
+    rotate(calc((var(--i) - 1.5) * 2.2deg))
+    scale(0.82);
+  opacity: 0.25;
+  will-change: transform, opacity;
+}
+
+.shop .trend-scatter__card.is-gold .trend-scatter__drift { outline: 2px solid var(--lux-gold); outline-offset: -2px; }
+
+/* hover — lift + zoom (no transform clash) */
+.shop .trend-scatter__card:hover { z-index: 20; }
+.shop .trend-scatter__card:hover .trend-scatter__drift { box-shadow: 0 30px 60px rgba(47, 36, 29, 0.34); }
+.shop .trend-scatter__card:hover .trend-scatter__img { transform: scale(1.1); }
+
+.shop .trend-scatter__cap {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 1.6rem 0.85rem 0.85rem;
+  background: linear-gradient(180deg, transparent, rgba(22, 18, 14, 0.78));
+  color: var(--lux-ivory);
+}
+.shop .trend-scatter__tag {
+  font-family: var(--font-ui);
+  font-size: 0.56rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--lux-gold);
+}
+.shop .trend-scatter__name { font-size: 0.95rem; font-weight: 700; line-height: 1.1; }
+.shop .trend-scatter__story {
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: rgba(255, 253, 249, 0.78);
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition: max-height 0.4s ease, opacity 0.4s ease;
+}
+.shop .trend-scatter__card:hover .trend-scatter__story { max-height: 4rem; opacity: 1; }
+
+.shop .trend-scatter__handle {
+  position: absolute;
+  top: -0.6rem; right: -0.6rem;
+  z-index: 4;
+  padding: 0.24rem 0.55rem;
+  border-radius: 999px;
+  background: var(--lux-ink);
+  color: var(--lux-ivory);
+  font-family: var(--font-ui);
+  font-size: 0.62rem;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: 0 6px 14px rgba(47, 36, 29, 0.25);
+}
+
+/* ------------------------------------------------------------- responsive */
+
+@media (max-width: 900px) {
+  .shop .trend-scatter__inner { grid-template-columns: 1fr; }
+  .shop .trend-scatter__copy { text-align: center; max-width: 38rem; margin-inline: auto; }
+  .shop .trend-scatter__lead { margin-inline: auto; }
+  .shop .trend-scatter__stage { height: clamp(20rem, 60vw, 28rem); }
+  /* fan offsets are scaled down for small screens in JS (mobile factor) */
+  .shop .trend-scatter__handle { display: none; }
+}
+
+/* --------------------------------------------------------- reduced motion */
+
+@media (prefers-reduced-motion: reduce) {
+  .shop .trend-scatter__float { animation: none !important; }
+  /* JS places the cards at the final fan (progress = 1) on mount */
+}

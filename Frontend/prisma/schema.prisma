@@ -1,0 +1,1386 @@
+// ============================================================================
+// NDH TrendGrid — Multi-Tenant eCommerce SaaS Platform
+// Prisma schema (PostgreSQL)
+// ----------------------------------------------------------------------------
+// Conventions:
+//   - Primary keys: cuid()
+//   - Multi-tenant: most rows carry tenantId
+//   - Timestamps: createdAt / updatedAt on every model
+//   - Soft delete: deletedAt (nullable) on business entities
+//   - Flexible config stored as Json
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+enum TenantStatus {
+  active
+  trialing
+  suspended
+  cancelled
+}
+
+enum BillingCycle {
+  monthly
+  yearly
+}
+
+enum UserStatus {
+  active
+  invited
+  suspended
+  disabled
+}
+
+enum PageType {
+  home
+  shop
+  about
+  landing
+  custom
+}
+
+enum PageStatus {
+  draft
+  published
+  scheduled
+}
+
+enum ProductStatus {
+  draft
+  active
+  archived
+}
+
+enum ProductType {
+  physical
+  digital
+  service
+  bundle
+}
+
+enum InventoryPolicy {
+  deny
+  continue
+}
+
+enum CollectionType {
+  manual
+  smart
+}
+
+enum ReviewStatus {
+  pending
+  approved
+  rejected
+}
+
+enum OrderStatus {
+  pending
+  processing
+  packed
+  shipped
+  delivered
+  cancelled
+  refunded
+}
+
+enum PaymentStatus {
+  pending
+  authorized
+  paid
+  partially_refunded
+  refunded
+  failed
+}
+
+enum FulfillmentStatus {
+  unfulfilled
+  partial
+  fulfilled
+}
+
+enum AddressType {
+  shipping
+  billing
+}
+
+enum PaymentGatewayProvider {
+  stripe
+  paypal
+  razorpay
+  cash
+}
+
+enum RefundStatus {
+  pending
+  processing
+  completed
+  failed
+}
+
+enum CouponType {
+  percentage
+  fixed
+  freeShipping
+  buyXgetY
+}
+
+enum GiftCardStatus {
+  active
+  redeemed
+  expired
+  disabled
+}
+
+enum ShipmentStatus {
+  pending
+  in_transit
+  delivered
+  returned
+}
+
+enum SectionType {
+  fashion_hero
+  features_row
+  fashion_categories
+  promo_banner
+  deals_of_day
+  top_sellers
+  hero_banner
+  hero_split
+  hero_video
+  hero_slideshow
+  hero_parallax
+  product_grid
+  product_carousel
+  product_featured
+  product_comparison_table
+  collection_grid
+  collection_list
+  category_showcase
+  banner_image
+  banner_text
+  banner_cta
+  testimonials_grid
+  testimonials_carousel
+  testimonials_masonry
+  reviews_summary
+  trust_badges
+  brand_logos_strip
+  stats_counter
+  newsletter_signup
+  countdown_timer
+  image_text_split
+  image_text_overlap
+  image_gallery_grid
+  image_gallery_masonry
+  video_embed
+  video_background
+  rich_text
+  faq_accordion
+  pricing_table
+  comparison_chart
+  team_grid
+  timeline
+  map_embed
+  contact_form
+  custom_html
+  divider
+  spacer
+  announcement_bar
+  cookie_banner
+  floating_cart_preview
+}
+
+// ============================================================================
+// TENANT & IDENTITY LAYER
+// ============================================================================
+
+model Tenant {
+  id           String       @id @default(cuid())
+  name         String
+  slug         String       @unique
+  customDomain String?      @unique
+  subdomain    String?      @unique
+  planId       String?
+  plan         TenantPlan?  @relation(fields: [planId], references: [id])
+  status       TenantStatus @default(trialing)
+  trialEndsAt  DateTime?
+  settings     Json?
+  featureFlags Json?
+  metaJson     Json?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  deletedAt    DateTime?
+
+  users           User[]
+  roles           Role[]
+  auditLogs       AuditLog[]
+  themes          Theme[]
+  themeHistory    ThemeHistory[]
+  pages           Page[]
+  sections        Section[]
+  blocks          Block[]
+  products        Product[]
+  productVariants ProductVariant[]
+  productOptions  ProductOption[]
+  productImages   ProductImage[]
+  categories      Category[]
+  collections     Collection[]
+  brands          Brand[]
+  tags            Tag[]
+  reviews         Review[]
+  carts           Cart[]
+  orders          Order[]
+  orderItems      OrderItem[]
+  orderAddresses  OrderAddress[]
+  shipments       Shipment[]
+  payments        Payment[]
+  refunds         Refund[]
+  coupons         Coupon[]
+  giftCards       GiftCard[]
+  wishlists       Wishlist[]
+  customers       Customer[]
+  media           Media[]
+  mediaFolders    MediaFolder[]
+  storeSettings   StoreSettings?
+  shippingZones   ShippingZone[]
+  shippingRates   ShippingRate[]
+  paymentGateways PaymentGateway[]
+  emailTemplates  EmailTemplate[]
+  webhooks        Webhook[]
+
+  @@index([status])
+}
+
+model TenantPlan {
+  id           String       @id @default(cuid())
+  name         String
+  maxProducts  Int          @default(100)
+  maxOrders    Int          @default(1000)
+  maxStaff     Int          @default(3)
+  maxStorage   Int          @default(1024) // MB
+  features     Json?
+  price        Decimal      @default(0) @db.Decimal(12, 2)
+  billingCycle BillingCycle @default(monthly)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  deletedAt    DateTime?
+
+  tenants Tenant[]
+}
+
+model User {
+  id           String     @id @default(cuid())
+  tenantId     String
+  tenant       Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  email        String
+  passwordHash String
+  firstName    String?
+  lastName     String?
+  avatar       String?
+  status       UserStatus @default(active)
+  lastLoginAt  DateTime?
+  preferences  Json?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  deletedAt    DateTime?
+
+  roles              UserRole[]
+  sessions           Session[]
+  emailVerifications EmailVerification[]
+  passwordResets     PasswordReset[]
+  auditLogs          AuditLog[]
+  reviews            Review[]
+  reviewVotes        ReviewVote[]
+  carts              Cart[]
+  orders             Order[]
+  wishlists          Wishlist[]
+  customer           Customer?
+
+  @@unique([tenantId, email])
+  @@index([tenantId])
+}
+
+model Role {
+  id          String     @id @default(cuid())
+  tenantId    String
+  tenant      Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name        String
+  permissions Json?
+  isSystem    Boolean    @default(false)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  deletedAt   DateTime?
+
+  users UserRole[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+}
+
+model UserRole {
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roleId    String
+  role      Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  grantedAt DateTime @default(now())
+  grantedBy String?
+
+  @@id([userId, roleId])
+  @@index([roleId])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  ipAddress String?
+  userAgent String?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model EmailVerification {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token      String    @unique
+  expiresAt  DateTime
+  verifiedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId])
+}
+
+model PasswordReset {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  action    String
+  entity    String
+  entityId  String?
+  before    Json?
+  after     Json?
+  ipAddress String?
+  timestamp DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([tenantId, entity, entityId])
+}
+
+// ============================================================================
+// VISUAL DESIGN TOKEN SYSTEM (THEME)
+// ============================================================================
+
+model Theme {
+  id           String    @id @default(cuid())
+  tenantId     String
+  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name         String
+  isActive     Boolean   @default(false)
+  isDefault    Boolean   @default(false)
+  version      Int       @default(1)
+  publishedAt  DateTime?
+  /// Unpublished draft of token values. Live columns stay untouched until
+  /// publish, when this JSON is applied to the columns and cleared.
+  draftTokens  Json?
+  createdBy    String?
+  lastEditedBy String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  // ---- COLOR SYSTEM ----
+  colorPrimary             String @default("#6366F1")
+  colorPrimaryHover        String @default("#4F46E5")
+  colorPrimaryActive       String @default("#4338CA")
+  colorPrimaryForeground   String @default("#FFFFFF")
+  colorSecondary           String @default("#64748B")
+  colorSecondaryHover      String @default("#475569")
+  colorSecondaryForeground String @default("#FFFFFF")
+  colorAccent              String @default("#F59E0B")
+  colorAccentHover         String @default("#D97706")
+  colorAccentForeground    String @default("#FFFFFF")
+  colorBackground          String @default("#FFFFFF")
+  colorSurface             String @default("#F8FAFC")
+  colorSurfaceElevated     String @default("#FFFFFF")
+  colorBorder              String @default("#E2E8F0")
+  colorBorderFocus         String @default("#6366F1")
+  colorText                String @default("#0F172A")
+  colorTextMuted           String @default("#64748B")
+  colorTextInverse         String @default("#FFFFFF")
+  colorSuccess             String @default("#22C55E")
+  colorSuccessForeground   String @default("#FFFFFF")
+  colorWarning             String @default("#F59E0B")
+  colorWarningForeground   String @default("#FFFFFF")
+  colorError               String @default("#EF4444")
+  colorErrorForeground     String @default("#FFFFFF")
+  colorInfo                String @default("#3B82F6")
+  colorInfoForeground      String @default("#FFFFFF")
+  colorOverlay             String @default("rgba(15,23,42,0.5)")
+  colorSkeleton            String @default("#E2E8F0")
+
+  // ---- TYPOGRAPHY SYSTEM ----
+  fontFamilyDisplay   String  @default("Inter")
+  fontFamilyBody      String  @default("Inter")
+  fontFamilyMono      String  @default("JetBrains Mono")
+  fontFamilyUI        String  @default("Inter")
+  fontWeightLight     Int     @default(300)
+  fontWeightRegular   Int     @default(400)
+  fontWeightMedium    Int     @default(500)
+  fontWeightSemibold  Int     @default(600)
+  fontWeightBold      Int     @default(700)
+  fontWeightBlack     Int     @default(900)
+  fontSizeXs          String  @default("0.75rem")
+  fontSizeSm          String  @default("0.875rem")
+  fontSizeBase        String  @default("1rem")
+  fontSizeLg          String  @default("1.125rem")
+  fontSizeXl          String  @default("1.25rem")
+  fontSize2xl         String  @default("1.5rem")
+  fontSize3xl         String  @default("1.875rem")
+  fontSize4xl         String  @default("2.25rem")
+  fontSize5xl         String  @default("3rem")
+  lineHeightTight     Float   @default(1.1)
+  lineHeightNormal    Float   @default(1.5)
+  lineHeightRelaxed   Float   @default(1.75)
+  letterSpacingTight  String  @default("-0.02em")
+  letterSpacingNormal String  @default("0em")
+  letterSpacingWide   String  @default("0.05em")
+
+  // ---- SPACING & LAYOUT SYSTEM ----
+  spacingUnit       String @default("4px")
+  containerMaxWidth String @default("1280px")
+  containerPaddingX String @default("1.5rem")
+  sectionPaddingY   String @default("4rem")
+  gridGap           String @default("1.5rem")
+  gridColumns       Int    @default(4)
+  gridColumnsMobile Int    @default(2)
+
+  // ---- BORDER & SHAPE SYSTEM ----
+  borderRadiusNone   String @default("0px")
+  borderRadiusSm     String @default("4px")
+  borderRadiusMd     String @default("8px")
+  borderRadiusLg     String @default("12px")
+  borderRadiusXl     String @default("16px")
+  borderRadius2xl    String @default("24px")
+  borderRadiusFull   String @default("9999px")
+  borderRadiusCard   String @default("12px")
+  borderRadiusButton String @default("8px")
+  borderRadiusInput  String @default("8px")
+  borderRadiusBadge  String @default("9999px")
+  borderRadiusImage  String @default("12px")
+  borderWidth        String @default("1px")
+  borderStyle        String @default("solid")
+  borderColor        String @default("#E2E8F0")
+
+  // ---- SHADOW SYSTEM ----
+  shadowNone     String @default("none")
+  shadowXs       String @default("0 1px 2px rgba(0,0,0,0.05)")
+  shadowSm       String @default("0 1px 3px rgba(0,0,0,0.1)")
+  shadowMd       String @default("0 4px 6px rgba(0,0,0,0.1)")
+  shadowLg       String @default("0 10px 15px rgba(0,0,0,0.1)")
+  shadowXl       String @default("0 20px 25px rgba(0,0,0,0.1)")
+  shadowInner    String @default("inset 0 2px 4px rgba(0,0,0,0.06)")
+  shadowGlow     String @default("0 0 20px rgba(99,102,241,0.5)")
+  shadowCard     String @default("sm")
+  shadowCardHover String @default("lg")
+  shadowButton   String @default("xs")
+  shadowModal    String @default("xl")
+  shadowDropdown String @default("lg")
+  shadowColor    String @default("#000000")
+
+  // ---- BUTTON SYSTEM ----
+  buttonShape           String @default("rounded") // square | rounded | pill | custom
+  buttonVariantPrimary  String @default("solid")   // solid | outline | ghost | soft | gradient
+  buttonVariantSecondary String @default("outline")
+  buttonHoverEffect     String @default("lift")     // none | lift | glow | fill | shimmer | ripple
+  buttonTransitionMs    Int    @default(200)
+  buttonPaddingX        String @default("1.25rem")
+  buttonPaddingY        String @default("0.625rem")
+  buttonFontWeight      Int    @default(600)
+  buttonLetterSpacing   String @default("0em")
+  buttonTextTransform   String @default("none")     // none | uppercase | capitalize
+  buttonIconPosition    String @default("left")     // left | right
+  buttonLoadingStyle    String @default("spinner")  // spinner | dots | skeleton | pulse
+
+  // ---- CARD SYSTEM ----
+  cardStyle             String  @default("elevated") // flat | elevated | outlined | ghost | glassmorphism
+  cardHoverEffect       String  @default("lift")     // none | lift | glow | border-highlight | scale | tilt
+  cardHoverTransitionMs Int     @default(200)
+  cardImageRatio        String  @default("1:1")      // 1:1 | 4:3 | 3:4 | 16:9 | 3:2
+  cardImageFit          String  @default("cover")    // cover | contain | fill
+  cardImagePosition     String  @default("center")   // top | center | bottom
+  cardPaddingX          String  @default("1rem")
+  cardPaddingY          String  @default("1rem")
+  cardShowQuickBuy      Boolean @default(true)
+  cardShowWishlist      Boolean @default(true)
+  cardShowCompare       Boolean @default(false)
+  cardShowRating        Boolean @default(true)
+  cardShowBadges        Boolean @default(true)
+  cardBadgeStyle        String  @default("pill")      // pill | square | ribbon | corner-fold
+
+  // ---- PATTERN & BACKGROUND SYSTEM ----
+  patternType       String @default("solid")
+  patternColorA     String @default("#6366F1")
+  patternColorB     String @default("#8B5CF6")
+  patternColorC     String @default("#EC4899")
+  patternOpacity    Float  @default(1.0)
+  patternSize       String @default("24px")
+  patternAngle      Int    @default(45)
+  patternBlur       String @default("0px")
+  patternSaturation Int    @default(100)
+  overlayType       String @default("none")     // none | color | gradient | vignette
+  overlayColor      String @default("rgba(0,0,0,0.3)")
+  overlayOpacity    Float  @default(0.3)
+  overlayBlendMode  String @default("normal")   // multiply | screen | overlay | darken
+
+  // ---- ANIMATION SYSTEM ----
+  animationEnabled        Boolean @default(true)
+  animationReducedMotion  Boolean @default(true)
+  animationEntrance       String  @default("fadeIn")
+  animationEntranceDuration Int   @default(500)
+  animationEntranceDelay  Int     @default(0)
+  animationEasing         String  @default("easeOut")
+  animationStagger        Int     @default(80)
+  animationScrollTrigger  Boolean @default(true)
+  animationHoverScale     Float   @default(1.03)
+  animationHoverDuration  Int     @default(200)
+  animationPageTransition String  @default("fade")    // none | fade | slide | morph
+  animationLoadingStyle   String  @default("skeleton")
+
+  // ---- HEADER & NAVIGATION SYSTEM ----
+  headerStyle         String  @default("solid")        // transparent | solid | blur | gradient | bordered
+  headerHeight        String  @default("72px")
+  headerSticky        Boolean @default(true)
+  headerScrollBehavior String @default("always-visible")
+  navStyle            String  @default("horizontal")   // horizontal | mega-menu | hamburger | sidebar | tabs
+  navItemSpacing      String  @default("1.5rem")
+  navActiveIndicator  String  @default("underline")    // underline | dot | background | border | none
+  mobileMenuStyle     String  @default("drawer-left")
+  cartIconStyle       String  @default("bag")           // bag | cart | basket | minimal
+
+  history ThemeHistory[]
+
+  @@index([tenantId])
+  @@index([tenantId, isActive])
+}
+
+model ThemeHistory {
+  id       String   @id @default(cuid())
+  themeId  String
+  theme    Theme    @relation(fields: [themeId], references: [id], onDelete: Cascade)
+  tenantId String
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  snapshot Json
+  savedBy  String?
+  savedAt  DateTime @default(now())
+  label    String?
+
+  @@index([themeId])
+  @@index([tenantId])
+}
+
+// ============================================================================
+// PAGE BUILDER
+// ============================================================================
+
+model Page {
+  id            String     @id @default(cuid())
+  tenantId      String
+  tenant        Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  title         String
+  slug          String
+  type          PageType   @default(custom)
+  status        PageStatus @default(draft)
+  publishedAt   DateTime?
+  scheduledFor  DateTime?
+  seoTitle      String?
+  seoDescription String?
+  seoImage      String?
+  canonicalUrl  String?
+  ogTitle       String?
+  ogDescription String?
+  ogImage       String?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  deletedAt     DateTime?
+
+  sections Section[]
+
+  @@unique([tenantId, slug])
+  @@index([tenantId])
+  @@index([tenantId, status])
+}
+
+model Section {
+  id            String      @id @default(cuid())
+  pageId        String
+  page          Page        @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  tenantId      String
+  tenant        Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  type          SectionType
+  order         Int         @default(0)
+  isVisible     Boolean     @default(true)
+  customCss     String?
+  customClasses String?
+  anchorId      String?
+  mobileHidden  Boolean     @default(false)
+  tabletHidden  Boolean     @default(false)
+  desktopHidden Boolean     @default(false)
+  settingsJson  Json?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  deletedAt     DateTime?
+
+  blocks Block[]
+
+  @@index([pageId])
+  @@index([tenantId])
+  @@index([pageId, order])
+}
+
+model Block {
+  id          String   @id @default(cuid())
+  sectionId   String
+  section     Section  @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  type        String
+  order       Int      @default(0)
+  contentJson Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  @@index([sectionId])
+  @@index([tenantId])
+  @@index([sectionId, order])
+}
+
+// ============================================================================
+// PRODUCT & CATALOG SYSTEM
+// ============================================================================
+
+model Product {
+  id               String        @id @default(cuid())
+  tenantId         String
+  tenant           Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  title            String
+  slug             String
+  description      String?       @db.Text
+  shortDescription String?
+  status           ProductStatus @default(draft)
+  type             ProductType   @default(physical)
+  categoryId       String?
+  category         Category?     @relation(fields: [categoryId], references: [id])
+  brandId          String?
+  brand            Brand?        @relation(fields: [brandId], references: [id])
+  taxClassId       String?
+  seoTitle         String?
+  seoDescription   String?
+  seoImage         String?
+  publishedAt      DateTime?
+  featuredAt       DateTime?
+  weight           Float?
+  dimensions       Json?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  deletedAt        DateTime?
+
+  variants   ProductVariant[]
+  options    ProductOption[]
+  images     ProductImage[]
+  tags       ProductTag[]
+  reviews    Review[]
+  orderItems OrderItem[]
+
+  @@unique([tenantId, slug])
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([categoryId])
+  @@index([brandId])
+}
+
+model ProductVariant {
+  id               String          @id @default(cuid())
+  productId        String
+  product          Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  tenantId         String
+  tenant           Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  sku              String?
+  barcode          String?
+  price            Decimal         @db.Decimal(12, 2)
+  compareAtPrice   Decimal?        @db.Decimal(12, 2)
+  costPrice        Decimal?        @db.Decimal(12, 2)
+  currency         String          @default("USD")
+  inventoryQuantity Int            @default(0)
+  inventoryPolicy  InventoryPolicy @default(deny)
+  inventoryTracked Boolean         @default(true)
+  weight           Float?
+  requiresShipping Boolean         @default(true)
+  options          Json?
+  isDefault        Boolean         @default(false)
+  sortOrder        Int             @default(0)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  deletedAt        DateTime?
+
+  images     ProductImage[]
+  orderItems OrderItem[]
+
+  @@index([productId])
+  @@index([tenantId])
+  @@index([tenantId, sku])
+}
+
+model ProductOption {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name      String
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  values ProductOptionValue[]
+
+  @@index([productId])
+  @@index([tenantId])
+}
+
+model ProductOptionValue {
+  id        String        @id @default(cuid())
+  optionId  String
+  option    ProductOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  value     String
+  colorHex  String?
+  imageId   String?
+  sortOrder Int           @default(0)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@index([optionId])
+}
+
+model ProductImage {
+  id           String          @id @default(cuid())
+  productId    String?
+  product      Product?        @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variantId    String?
+  variant      ProductVariant? @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  tenantId     String
+  tenant       Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  url          String
+  thumbnailUrl String?
+  altText      String?
+  width        Int?
+  height       Int?
+  mimeType     String?
+  size         Int?
+  sortOrder    Int             @default(0)
+  isPrimary    Boolean         @default(false)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  @@index([productId])
+  @@index([variantId])
+  @@index([tenantId])
+}
+
+model Category {
+  id            String     @id @default(cuid())
+  tenantId      String
+  tenant        Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  parentId      String?
+  parent        Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children      Category[] @relation("CategoryTree")
+  name          String
+  slug          String
+  description   String?
+  image         String?
+  seoTitle      String?
+  seoDescription String?
+  sortOrder     Int        @default(0)
+  isVisible     Boolean    @default(true)
+  metaJson      Json?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  deletedAt     DateTime?
+
+  products Product[]
+
+  @@unique([tenantId, slug])
+  @@index([tenantId])
+  @@index([parentId])
+}
+
+model Collection {
+  id          String         @id @default(cuid())
+  tenantId    String
+  tenant      Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name        String
+  slug        String
+  description String?
+  image       String?
+  conditions  Json?
+  type        CollectionType @default(manual)
+  sortOrder   Int            @default(0)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  deletedAt   DateTime?
+
+  @@unique([tenantId, slug])
+  @@index([tenantId])
+}
+
+model Brand {
+  id          String    @id @default(cuid())
+  tenantId    String
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name        String
+  slug        String
+  logo        String?
+  website     String?
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  products Product[]
+
+  @@unique([tenantId, slug])
+  @@index([tenantId])
+}
+
+model Tag {
+  id        String       @id @default(cuid())
+  tenantId  String
+  tenant    Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name      String
+  slug      String
+  color     String?
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  products ProductTag[]
+
+  @@unique([tenantId, slug])
+  @@index([tenantId])
+}
+
+model ProductTag {
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  tagId     String
+  tag       Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([productId, tagId])
+  @@index([tagId])
+}
+
+model Review {
+  id               String       @id @default(cuid())
+  productId        String
+  product          Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  tenantId         String
+  tenant           Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId           String?
+  user             User?        @relation(fields: [userId], references: [id])
+  rating           Int
+  title            String?
+  body             String?      @db.Text
+  images           Json?
+  status           ReviewStatus @default(pending)
+  verifiedPurchase Boolean      @default(false)
+  helpfulCount     Int          @default(0)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  deletedAt        DateTime?
+
+  votes ReviewVote[]
+
+  @@index([productId])
+  @@index([tenantId])
+  @@index([productId, status])
+}
+
+model ReviewVote {
+  reviewId  String
+  review    Review  @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  isHelpful Boolean @default(true)
+
+  @@id([reviewId, userId])
+  @@index([userId])
+}
+
+// ============================================================================
+// ORDER & COMMERCE SYSTEM
+// ============================================================================
+
+model Cart {
+  id                 String    @id @default(cuid())
+  tenantId           String
+  tenant             Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId             String?
+  user               User?     @relation(fields: [userId], references: [id])
+  sessionId          String?
+  currency           String    @default("USD")
+  items              Json?
+  couponCode         String?
+  discountAmount     Decimal   @default(0) @db.Decimal(12, 2)
+  taxAmount          Decimal   @default(0) @db.Decimal(12, 2)
+  shippingAmount     Decimal   @default(0) @db.Decimal(12, 2)
+  subtotal           Decimal   @default(0) @db.Decimal(12, 2)
+  total              Decimal   @default(0) @db.Decimal(12, 2)
+  expiresAt          DateTime?
+  abandonedAt        DateTime?
+  recoveryEmailSentAt DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([tenantId])
+  @@index([userId])
+  @@index([sessionId])
+}
+
+model Order {
+  id                String            @id @default(cuid())
+  tenantId          String
+  tenant            Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId            String?
+  user              User?             @relation(fields: [userId], references: [id])
+  orderNumber       String
+  status            OrderStatus       @default(pending)
+  paymentStatus     PaymentStatus     @default(pending)
+  fulfillmentStatus FulfillmentStatus @default(unfulfilled)
+  currency          String            @default("USD")
+  subtotal          Decimal           @default(0) @db.Decimal(12, 2)
+  discountAmount    Decimal           @default(0) @db.Decimal(12, 2)
+  taxAmount         Decimal           @default(0) @db.Decimal(12, 2)
+  shippingAmount    Decimal           @default(0) @db.Decimal(12, 2)
+  total             Decimal           @default(0) @db.Decimal(12, 2)
+  notes             String?           @db.Text
+  ipAddress         String?
+  userAgent         String?
+  referrer          String?
+  utm               Json?
+  tags              Json?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  deletedAt         DateTime?
+
+  items     OrderItem[]
+  addresses OrderAddress[]
+  shipments Shipment[]
+  payments  Payment[]
+  refunds   Refund[]
+
+  @@unique([tenantId, orderNumber])
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([userId])
+}
+
+model OrderItem {
+  id             String          @id @default(cuid())
+  orderId        String
+  order          Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId      String?
+  product        Product?        @relation(fields: [productId], references: [id])
+  variantId      String?
+  variant        ProductVariant? @relation(fields: [variantId], references: [id])
+  tenantId       String
+  tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  title          String
+  variantTitle   String?
+  sku            String?
+  quantity       Int             @default(1)
+  price          Decimal         @db.Decimal(12, 2)
+  compareAtPrice Decimal?        @db.Decimal(12, 2)
+  discountAmount Decimal         @default(0) @db.Decimal(12, 2)
+  taxAmount      Decimal         @default(0) @db.Decimal(12, 2)
+  totalPrice     Decimal         @db.Decimal(12, 2)
+  imageUrl       String?
+  options        Json?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@index([orderId])
+  @@index([tenantId])
+  @@index([productId])
+}
+
+model OrderAddress {
+  id        String      @id @default(cuid())
+  orderId   String
+  order     Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  tenantId  String
+  tenant    Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  type      AddressType
+  firstName String?
+  lastName  String?
+  company   String?
+  line1     String?
+  line2     String?
+  city      String?
+  state     String?
+  zip       String?
+  country   String?
+  phone     String?
+  isDefault Boolean     @default(false)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@index([orderId])
+  @@index([tenantId])
+}
+
+model Shipment {
+  id                String         @id @default(cuid())
+  orderId           String
+  order             Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  tenantId          String
+  tenant            Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  carrier           String?
+  trackingNumber    String?
+  trackingUrl       String?
+  status            ShipmentStatus @default(pending)
+  estimatedDelivery DateTime?
+  shippedAt         DateTime?
+  deliveredAt       DateTime?
+  items             Json?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  @@index([orderId])
+  @@index([tenantId])
+}
+
+model Payment {
+  id                   String                 @id @default(cuid())
+  orderId              String
+  order                Order                  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  tenantId             String
+  tenant               Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  gateway              PaymentGatewayProvider
+  gatewayTransactionId String?
+  amount               Decimal                @db.Decimal(12, 2)
+  currency             String                 @default("USD")
+  status               PaymentStatus          @default(pending)
+  method               String?
+  last4                String?
+  brand                String?
+  receiptUrl           String?
+  failureReason        String?
+  metadata             Json?
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+
+  refunds Refund[]
+
+  @@index([orderId])
+  @@index([tenantId])
+}
+
+model Refund {
+  id              String       @id @default(cuid())
+  orderId         String
+  order           Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  paymentId       String?
+  payment         Payment?     @relation(fields: [paymentId], references: [id])
+  tenantId        String
+  tenant          Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  amount          Decimal      @db.Decimal(12, 2)
+  reason          String?
+  status          RefundStatus @default(pending)
+  gatewayRefundId String?
+  processedAt     DateTime?
+  processedBy     String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([orderId])
+  @@index([tenantId])
+}
+
+model Coupon {
+  id                  String     @id @default(cuid())
+  tenantId            String
+  tenant              Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  code                String
+  type                CouponType @default(percentage)
+  value               Decimal    @default(0) @db.Decimal(12, 2)
+  minOrderAmount      Decimal?   @db.Decimal(12, 2)
+  maxDiscountAmount   Decimal?   @db.Decimal(12, 2)
+  usageLimit          Int?
+  usageCount          Int        @default(0)
+  perUserLimit        Int?
+  startsAt            DateTime?
+  expiresAt           DateTime?
+  applicableProducts  Json?
+  applicableCategories Json?
+  conditions          Json?
+  isActive            Boolean    @default(true)
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+  deletedAt           DateTime?
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+}
+
+model GiftCard {
+  id             String         @id @default(cuid())
+  tenantId       String
+  tenant         Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  code           String
+  initialBalance Decimal        @db.Decimal(12, 2)
+  currentBalance Decimal        @db.Decimal(12, 2)
+  currency       String         @default("USD")
+  expiresAt      DateTime?
+  issuedTo       String?
+  status         GiftCardStatus @default(active)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  deletedAt      DateTime?
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+}
+
+model Wishlist {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  name      String   @default("My Wishlist")
+  isPublic  Boolean  @default(false)
+  items     Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([userId])
+}
+
+model Customer {
+  id              String    @id @default(cuid())
+  tenantId        String
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId          String?   @unique
+  user            User?     @relation(fields: [userId], references: [id])
+  totalOrders     Int       @default(0)
+  totalSpent      Decimal   @default(0) @db.Decimal(12, 2)
+  averageOrderValue Decimal @default(0) @db.Decimal(12, 2)
+  firstOrderAt    DateTime?
+  lastOrderAt     DateTime?
+  tags            Json?
+  notes           String?   @db.Text
+  marketingOptIn  Boolean   @default(false)
+  segments        Json?
+  lifetimeValue   Decimal   @default(0) @db.Decimal(12, 2)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  @@index([tenantId])
+}
+
+// ============================================================================
+// MEDIA & ASSETS
+// ============================================================================
+
+model Media {
+  id           String       @id @default(cuid())
+  tenantId     String
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  uploadedBy   String?
+  filename     String
+  originalName String?
+  mimeType     String?
+  size         Int?
+  url          String
+  thumbnailUrl String?
+  mediumUrl    String?
+  largeUrl     String?
+  width        Int?
+  height       Int?
+  altText      String?
+  caption      String?
+  folderId     String?
+  folder       MediaFolder? @relation(fields: [folderId], references: [id])
+  tags         Json?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  deletedAt    DateTime?
+
+  @@index([tenantId])
+  @@index([folderId])
+}
+
+model MediaFolder {
+  id        String        @id @default(cuid())
+  tenantId  String
+  tenant    Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  parentId  String?
+  parent    MediaFolder?  @relation("FolderTree", fields: [parentId], references: [id])
+  children  MediaFolder[] @relation("FolderTree")
+  name      String
+  path      String?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  media Media[]
+
+  @@index([tenantId])
+  @@index([parentId])
+}
+
+// ============================================================================
+// SETTINGS & CONFIGURATION
+// ============================================================================
+
+model StoreSettings {
+  id             String   @id @default(cuid())
+  tenantId       String   @unique
+  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  storeName      String
+  storeEmail     String?
+  storePhone     String?
+  storeLogo      String?
+  storeFavicon   String?
+  storeAddress   Json?
+  currency       String   @default("USD")
+  currencyFormat String   @default("{symbol}{amount}")
+  timezone       String   @default("UTC")
+  language       String   @default("en")
+  weightUnit     String   @default("kg")
+  dimensionUnit  String   @default("cm")
+  orderPrefix    String   @default("ORD-")
+  emailFromName  String?
+  emailFromAddress String?
+  supportEmail   String?
+  socialLinks    Json?
+  checkoutFields Json?
+  taxConfig      Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([tenantId])
+}
+
+model ShippingZone {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name      String
+  countries Json?
+  conditions Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  rates ShippingRate[]
+
+  @@index([tenantId])
+}
+
+model ShippingRate {
+  id        String       @id @default(cuid())
+  zoneId    String
+  zone      ShippingZone @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  tenantId  String
+  tenant    Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name      String
+  type      String       @default("flat") // flat | weight | price | free
+  price     Decimal      @default(0) @db.Decimal(12, 2)
+  minWeight Float?
+  maxWeight Float?
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@index([zoneId])
+  @@index([tenantId])
+}
+
+model PaymentGateway {
+  id          String                 @id @default(cuid())
+  tenantId    String
+  tenant      Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  provider    PaymentGatewayProvider
+  isEnabled   Boolean                @default(false)
+  isTest      Boolean                @default(true)
+  credentials Json?
+  config      Json?
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+
+  @@unique([tenantId, provider])
+  @@index([tenantId])
+}
+
+model EmailTemplate {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  type      String
+  subject   String
+  htmlBody  String   @db.Text
+  textBody  String?  @db.Text
+  variables Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, type])
+  @@index([tenantId])
+}
+
+model Webhook {
+  id              String    @id @default(cuid())
+  tenantId        String
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  url             String
+  events          Json?
+  secret          String?
+  isActive        Boolean   @default(true)
+  lastTriggeredAt DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([tenantId])
+}

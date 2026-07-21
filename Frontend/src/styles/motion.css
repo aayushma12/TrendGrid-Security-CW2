@@ -1,0 +1,239 @@
+/* ============================================================================
+   NDH TrendGrid — MOTION & MICRO-INTERACTION LAYER
+   ----------------------------------------------------------------------------
+   Loaded after shop.css + the luxury layer. Brings every page to life with
+   refined transitions, hover states, staggered entrances and tactile feedback.
+   Scoped under .shop. Fully honours prefers-reduced-motion (guard at the end).
+   ========================================================================== */
+
+/* ----------------------------------------------------------- foundations */
+html { scroll-behavior: smooth; }
+
+.shop ::selection { background: var(--lux-gold, #C9A24B); color: var(--lux-ink, #16120E); }
+
+.shop :focus-visible {
+  outline: 2px solid var(--lux-gold, #C9A24B);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+/* page load fade so first paint feels intentional */
+.shop > * { animation: luxPageIn 0.7s var(--lux-ease, cubic-bezier(0.22,1,0.36,1)) both; }
+@keyframes luxPageIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* ----------------------------------------------------------------- links */
+.shop .breadcrumb a,
+.shop .read-more,
+.shop .footer a,
+.shop .pdp__share button {
+  position: relative;
+  transition: color 0.3s ease;
+}
+.shop .breadcrumb a::after,
+.shop .read-more::after {
+  content: "";
+  position: absolute; left: 0; bottom: -2px;
+  width: 100%; height: 1px;
+  background: currentColor;
+  transform: scaleX(0); transform-origin: right;
+  transition: transform 0.4s var(--lux-ease, cubic-bezier(0.22,1,0.36,1));
+}
+.shop .breadcrumb a:hover::after,
+.shop .read-more:hover::after { transform: scaleX(1); transform-origin: left; }
+.shop .read-more { display: inline-flex; align-items: center; gap: 0.35rem; }
+.shop .read-more:hover { color: var(--lux-gold-deep, #A9863A); }
+
+/* --------------------------------------------------------------- buttons */
+.shop .btn {
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.35s var(--lux-ease, cubic-bezier(0.22,1,0.36,1)),
+              box-shadow 0.35s ease, background-color 0.35s ease,
+              color 0.35s ease, border-color 0.35s ease;
+}
+.shop .btn:hover { transform: translateY(-2px); box-shadow: 0 14px 26px -14px rgba(22,18,14,0.55); }
+.shop .btn:active { transform: translateY(0) scale(0.985); }
+/* sheen sweep */
+.shop .btn::after {
+  content: "";
+  position: absolute; top: 0; left: -120%;
+  width: 60%; height: 100%;
+  background: linear-gradient(100deg, transparent, rgba(255,255,255,0.35), transparent);
+  transform: skewX(-18deg);
+  transition: left 0.7s var(--lux-ease, cubic-bezier(0.22,1,0.36,1));
+  pointer-events: none;
+}
+.shop .btn:hover::after { left: 130%; }
+.shop .btn--lg { letter-spacing: 0.14em; }
+
+/* icon buttons + carousel arrows */
+.shop .icon-btn {
+  transition: transform 0.3s var(--lux-ease, cubic-bezier(0.22,1,0.36,1)),
+              background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+}
+.shop .icon-btn:hover { transform: translateY(-2px); color: var(--lux-gold-deep, #A9863A); }
+.shop .icon-btn:active { transform: scale(0.92); }
+
+/* ----------------------------------------------------- image shimmer/zoom */
+.shop .pimg { position: relative; overflow: hidden; }
+.shop .pimg::before {
+  content: "";
+  position: absolute; inset: 0;
+  background: linear-gradient(100deg, transparent 20%, rgba(255,255,255,0.25) 50%, transparent 80%);
+  background-size: 200% 100%;
+  animation: luxShimmer 1.6s infinite;
+  opacity: 0.5;
+  z-index: 0;
+  pointer-events: none;
+}
+.shop .pimg .pimg__img { z-index: 1; }
+@keyframes luxShimmer { 0% { background-position: 150% 0; } 100% { background-position: -150% 0; } }
+
+.shop .pimg__img { transition: transform 0.9s var(--lux-ease, cubic-bezier(0.22,1,0.36,1)); }
+
+/* slow ken-burns on the hero portrait */
+.shop .lux-hero__frame--main .pimg__img { animation: luxKenBurns 20s ease-in-out infinite alternate; }
+@keyframes luxKenBurns {
+  from { transform: scale(1.02) translateY(0); }
+  to   { transform: scale(1.1) translateY(-1.5%); }
+}
+
+/* --------------------------------------------------------- product cards */
+.shop .pcard {
+  transition: transform 0.45s var(--lux-ease, cubic-bezier(0.22,1,0.36,1)),
+              box-shadow 0.45s ease, border-color 0.45s ease;
+}
+.shop .pcard:hover {
+  transform: translateY(-7px);
+  box-shadow: 0 30px 50px -28px rgba(22,18,14,0.5);
+}
+.shop .pcard:hover .pcard__media .pimg__img,
+.shop .pcard:hover .pimg__img { transform: scale(1.08); }
+.shop .pcard__name { transition: color 0.3s ease; }
+.shop .pcard:hover .pcard__name { color: var(--lux-gold-deep, #A9863A); }
+
+/* quick-action reveal (wishlist / quick view) */
+.shop .pcard__actions {
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.4s var(--lux-ease, cubic-bezier(0.22,1,0.36,1)),
+              transform 0.4s var(--lux-ease, cubic-bezier(0.22,1,0.36,1));
+}
+.shop .pcard:hover .pcard__actions { opacity: 1; transform: none; }
+.shop .pcard__badge { transition: transform 0.4s var(--lux-ease, cubic-bezier(0.22,1,0.36,1)); }
+.shop .pcard:hover .pcard__badge { transform: translateY(-2px); }
+
+/* staggered grid entrance (listing, related, deals) */
+.shop .pgrid > *,
+.shop .deals > * {
+  animation: luxFadeUp 0.6s var(--lux-ease, cubic-bezier(0.22,1,0.36,1)) backwards;
+}
+.shop .pgrid > *:nth-child(1),  .shop .deals > *:nth-child(1)  { animation-delay: 0.04s; }
+.shop .pgrid > *:nth-child(2),  .shop .deals > *:nth-child(2)  { animation-delay: 0.10s; }
+.shop .pgrid > *:nth-child(3)  { animation-delay: 0.16s; }
+.shop .pgrid > *:nth-child(4)  { animation-delay: 0.22s; }
+.shop .pgrid > *:nth-child(5)  { animation-delay: 0.28s; }
+.shop .pgrid > *:nth-child(6)  { animation-delay: 0.34s; }
+.shop .pgrid > *:nth-child(7)  { animation-delay: 0.40s; }
+.shop .pgrid > *:nth-child(8)  { animation-delay: 0.46s; }
+.shop .pgrid > *:nth-child(n+9) { animation-delay: 0.52s; }
+@keyframes luxFadeUp { from { opacity: 0; transform: translateY(22px); } to { opacity: 1; transform: none; } }
+
+/* --------------------------------------------------- chips / swatches */
+.shop .chip,
+.shop .swatch,
+.shop .page-btn,
+.shop .select {
+  transition: transform 0.25s var(--lux-ease, cubic-bezier(0.22,1,0.36,1)),
+              background-color 0.25s ease, color 0.25s ease,
+              border-color 0.25s ease, box-shadow 0.25s ease;
+}
+.shop .chip:hover,
+.shop .page-btn:hover { transform: translateY(-1px); border-color: var(--lux-gold, #C9A24B); }
+.shop .swatch:hover { transform: scale(1.12); box-shadow: 0 0 0 2px var(--lux-gold, #C9A24B); }
+.shop .swatch:active { transform: scale(0.96); }
+
+/* ------------------------------------------------------------ page hero */
+.shop .page-hero { position: relative; overflow: hidden; }
+.shop .page-hero > * { animation: luxFadeUp 0.7s var(--lux-ease, cubic-bezier(0.22,1,0.36,1)) both; }
+.shop .page-hero .dots { animation: luxFloatDots 7s ease-in-out infinite; }
+.shop .page-hero .dots--tr { animation-delay: -2s; }
+@keyframes luxFloatDots {
+  0%,100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(10px) rotate(4deg); }
+}
+
+/* ------------------------------------------------- product detail (PDP) */
+.shop .pdp__gallery .pimg__img { transition: transform 1s var(--lux-ease, cubic-bezier(0.22,1,0.36,1)); }
+.shop .pdp__gallery:hover .pimg__img { transform: scale(1.06); }
+.shop .pdp__thumbs .pimg,
+.shop .pdp__thumbs img {
+  transition: transform 0.3s var(--lux-ease, cubic-bezier(0.22,1,0.36,1)),
+              box-shadow 0.3s ease, opacity 0.3s ease;
+  cursor: pointer;
+}
+.shop .pdp__thumbs .pimg:hover { transform: translateY(-3px); box-shadow: 0 0 0 2px var(--lux-gold, #C9A24B); }
+.shop .pdp-tabs button { position: relative; transition: color 0.3s ease; }
+.shop .pdp-tabs button::after {
+  content: "";
+  position: absolute; left: 0; bottom: -1px; width: 100%; height: 2px;
+  background: var(--lux-gold, #C9A24B);
+  transform: scaleX(0); transform-origin: left;
+  transition: transform 0.35s var(--lux-ease, cubic-bezier(0.22,1,0.36,1));
+}
+.shop .pdp-tabs button:hover::after,
+.shop .pdp-tabs button.is-active::after,
+.shop .pdp-tabs button[aria-selected="true"]::after { transform: scaleX(1); }
+.shop .qty button { transition: transform 0.2s ease, background-color 0.25s ease, color 0.25s ease; }
+.shop .qty button:hover { color: var(--lux-gold-deep, #A9863A); }
+.shop .qty button:active { transform: scale(0.9); }
+
+/* ------------------------------------------------------ inputs / range */
+.shop input,
+.shop select,
+.shop textarea {
+  transition: border-color 0.3s ease, box-shadow 0.3s ease, background-color 0.3s ease;
+}
+.shop input:focus,
+.shop select:focus,
+.shop textarea:focus {
+  border-color: var(--lux-gold, #C9A24B) !important;
+  box-shadow: 0 0 0 3px var(--lux-gold-soft, rgba(201,162,75,0.16));
+  outline: none;
+}
+.shop .range input[type="range"]::-webkit-slider-thumb { transition: transform 0.2s ease; }
+.shop .range input[type="range"]:active::-webkit-slider-thumb { transform: scale(1.2); }
+
+/* ------------------------------------------------------ section headings */
+.shop .section-title { position: relative; }
+.shop .section-head .section-title::after {
+  content: "";
+  display: block;
+  width: 0; height: 2px;
+  margin: 0.9rem auto 0;
+  background: linear-gradient(90deg, transparent, var(--lux-gold, #C9A24B), transparent);
+  transition: width 0.8s var(--lux-ease, cubic-bezier(0.22,1,0.36,1));
+}
+.shop .lux-reveal.is-in .section-title::after,
+.shop .section-head:hover .section-title::after { width: 84px; }
+
+/* extra life on reveal: nested media rises a touch later */
+.shop .lux-reveal { transition-duration: 0.9s; }
+
+/* --------------------------------------------------- footer micro-motion */
+.shop .footer a { transition: color 0.3s ease, padding-left 0.3s ease; }
+.shop .footer a:hover { color: var(--lux-gold, #C9A24B); padding-left: 3px; }
+.shop .footer__socials .icon-btn:hover { background: var(--lux-gold, #C9A24B); color: var(--lux-ink, #16120E); }
+
+/* ------------------------------------------------------- reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .shop *,
+  .shop *::before,
+  .shop *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+  .shop .pimg::before { display: none; }
+}

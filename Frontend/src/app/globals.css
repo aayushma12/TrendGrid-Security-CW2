@@ -1,0 +1,63 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+/* Local font-face setup removed. If you add font files to `public/fonts/`, 
+   you can define @font-face rules here to use them. */
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+    /* Prefer the theme `--font-body` token so the active theme controls fonts.
+      Fall back to the local Handel font and system fonts if the token is missing. */
+    font-family: var(--font-body, "Handel", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif);
+}
+
+/* Top navigation progress bar (sits above the storefront layout) */
+.route-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  z-index: 9999;
+  background: var(--color-primary, #5d87ff);
+  transform-origin: left;
+  transform: scaleX(0);
+  transition: transform 0.3s ease, opacity 0.3s ease;
+  opacity: 0;
+}
+.route-progress.is-loading {
+  opacity: 1;
+  animation: routeBar 1.8s ease-in-out infinite;
+}
+.route-progress.is-done {
+  transform: scaleX(1);
+  opacity: 0;
+  transition: transform 0.2s ease, opacity 0.4s ease 0.2s;
+}
+@keyframes routeBar {
+  0%   { transform: scaleX(0); }
+  50%  { transform: scaleX(0.7); }
+  100% { transform: scaleX(0.9); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .route-progress { display: none; }
+}

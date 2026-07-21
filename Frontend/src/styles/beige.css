@@ -1,0 +1,89 @@
+/* ============================================================================
+   NDH TrendGrid — BEIGE LUXURY THEME LAYER
+   ----------------------------------------------------------------------------
+   Loaded last. Re-tones the luxury layer from ink/black to warm espresso +
+   soft bronze, warms image scrims, and applies the 24px rounded "floating
+   luxury card" language. Base --color-* tokens come from theme-defaults.ts.
+   ========================================================================== */
+
+.shop {
+  --lux-ink: #2F241D;          /* warm espresso (no harsh black) */
+  --lux-ink-soft: #6D5C50;
+  --lux-ivory: #FFFDF9;        /* card / on-dark text */
+  --lux-ivory-2: #F1E9DD;      /* secondary background */
+  --lux-gold: #B08968;         /* primary bronze accent */
+  --lux-gold-deep: #A67C52;    /* luxury accent */
+  --lux-gold-soft: rgba(176, 137, 104, 0.16);
+  --lux-line: rgba(47, 36, 29, 0.10);
+  --lux-glass: rgba(248, 244, 238, 0.74);
+  --lux-shadow: 0 26px 60px -30px rgba(47, 36, 29, 0.30);
+}
+
+/* page canvas: layered warm sand → champagne so it never reads flat */
+.shop {
+  background:
+    radial-gradient(120% 80% at 100% 0%, #F1E9DD 0%, transparent 45%),
+    radial-gradient(100% 70% at 0% 100%, #F4ECE0 0%, transparent 50%),
+    var(--color-background, #F8F4EE);
+  background-attachment: fixed;
+}
+
+/* ---------------------------------------------------- rounded luxury shells */
+.shop .btn { border-radius: 9999px; }
+.shop .lux-trendcard,
+.shop .lux-frame,
+.shop .lux-proofcard,
+.shop .lux-stl__stage,
+.shop .lux-mega__preview,
+.shop .lux-hero__frame { border-radius: 22px; }
+.shop .lux-newsletter { border-radius: 28px; }
+.shop .lux-stl__product,
+.shop .lux-stl__bundle { border-radius: 18px; }
+.shop .lux-chip { border-radius: 9999px; }
+
+/* deepen the floating-card feel */
+.shop .pcard,
+.shop .cat-tile,
+.shop .blog-card,
+.shop .deal-card,
+.shop .lux-proofcard { box-shadow: var(--shadow-sm, 0 2px 10px rgba(47,36,29,0.06)); }
+
+/* ----------------------------------------------------- warm the dark scrims */
+.shop .lux-trendcard__veil {
+  background: linear-gradient(to top, rgba(47, 36, 29, 0.80) 0%, rgba(47, 36, 29, 0.12) 55%, transparent 100%);
+}
+.shop .lux-frame__veil {
+  background: linear-gradient(to top, rgba(47, 36, 29, 0.70), transparent 58%);
+}
+.shop .lux-mega__previewBody {
+  background: linear-gradient(to top, rgba(47, 36, 29, 0.62), transparent 60%);
+}
+
+/* on-image tags use bronze, never red */
+.shop .lux-nav__link.is-sale { color: var(--lux-gold-deep); }
+.shop .lux-trendcard__tag { background: var(--lux-gold); color: var(--lux-ink); }
+
+/* hero wash in warm sand / champagne */
+.shop .lux-hero {
+  background:
+    radial-gradient(120% 90% at 85% 8%, #F1E9DD 0%, transparent 55%),
+    linear-gradient(180deg, #FBF7F1 0%, #F4ECE0 100%);
+}
+
+/* dark sections become warm espresso, not black */
+.shop .lux-section--ink { background: linear-gradient(160deg, #34281F 0%, #2A201A 100%); }
+.shop .lux-newsletter { background: linear-gradient(155deg, #34281F 0%, #241B15 100%); }
+
+/* champagne sticker + gold soft accents stay warm */
+.shop .lux-hero__sticker { background: linear-gradient(135deg, #C9A983, #A67C52); color: #2F241D; }
+
+/* discount / stock badges: warm bronze instead of bright accent yellow */
+.shop .badge--discount { background: var(--lux-gold-soft); color: var(--lux-gold-deep); }
+
+/* soft focus ring in bronze */
+.shop :focus-visible { outline-color: var(--lux-gold); }
+
+/* refined card image radius to match 24px language */
+.shop .pcard__media,
+.shop .cat-tile__media,
+.shop .pimg { border-radius: 16px; }

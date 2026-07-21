@@ -1,0 +1,524 @@
+/* ============================================================================
+   NDH TrendGrid — HOMEPAGE ENHANCEMENT LAYER
+   ----------------------------------------------------------------------------
+   Loaded last. Turns the editorial homepage into a livelier, more shoppable
+   store: functional product cards (swatches, quick-add, save badges), denser
+   grids, a parallax + animated-stat hero, a trust marquee, interactive
+   category tiles, animated promo banners, and a live deal countdown.
+   Scoped under .shop. Honours prefers-reduced-motion (guard at the end).
+   ========================================================================== */
+
+/* --------------------------------------------------------- denser product grid */
+.shop .pgrid--dense {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1.25rem;
+}
+
+/* ----------------------------------------------------- shoppable product card */
+.shop .pcard--shop {
+  border: 1px solid transparent;
+}
+.shop .pcard--shop:hover {
+  border-color: var(--lux-gold-soft, rgba(201, 162, 75, 0.16));
+}
+
+.shop .pcard--shop .pcard__media {
+  overflow: hidden;
+  aspect-ratio: 3 / 4;
+}
+.shop .pcard--shop .pcard__media .pimg {
+  height: 100%;
+}
+
+/* stacked badges (discount + bestseller) */
+.shop .pcard__badge {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+}
+.shop .badge--hot {
+  background: var(--lux-ink, #16120e);
+  color: var(--lux-gold, #c9a24b);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 0.6rem;
+  font-weight: 700;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-sm, 6px);
+}
+
+/* slide-up quick-add footer */
+.shop .pcard__quickadd {
+  position: absolute;
+  left: 0.7rem;
+  right: 0.7rem;
+  bottom: 0.7rem;
+  z-index: 3;
+  transform: translateY(140%);
+  opacity: 0;
+  transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.45s ease;
+}
+.shop .pcard--shop:hover .pcard__quickadd,
+.shop .pcard--shop:focus-within .pcard__quickadd {
+  transform: translateY(0);
+  opacity: 1;
+}
+.shop .pcard__quickadd-btn {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  backdrop-filter: blur(2px);
+  box-shadow: 0 10px 24px -12px rgba(22, 18, 14, 0.6);
+}
+.shop .pcard__quickadd-btn.is-added {
+  background: var(--color-success, #1e8e5a);
+  border-color: var(--color-success, #1e8e5a);
+  color: #fff;
+}
+
+/* colour swatches */
+.shop .pcard__swatches {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0.15rem 0 0.1rem;
+}
+.shop .pcard__swatch {
+  width: 0.95rem;
+  height: 0.95rem;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+  cursor: pointer;
+  transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.22s ease;
+}
+.shop .pcard__swatch:hover {
+  transform: scale(1.25);
+  box-shadow: 0 0 0 2px var(--lux-gold, #c9a24b);
+}
+.shop .pcard__swatch-more {
+  font-family: var(--font-ui);
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+}
+
+/* price row + savings */
+.shop .pcard__pricerow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.shop .pcard__save {
+  font-family: var(--font-ui);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: var(--color-success, #1e8e5a);
+  background: rgba(30, 142, 90, 0.1);
+  padding: 0.18rem 0.45rem;
+  border-radius: var(--radius-sm, 6px);
+}
+.shop .pcard__reviews {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-top: 0.1rem;
+}
+.shop .pcard__stock {
+  color: var(--color-success, #1e8e5a);
+  font-weight: 600;
+}
+.shop .pcard__stock::before {
+  content: "";
+  display: inline-block;
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 50%;
+  background: currentColor;
+  margin-right: 0.3rem;
+  vertical-align: middle;
+}
+.shop .pcard__stock--low {
+  color: var(--color-accent, #d97a1f);
+}
+
+/* ------------------------------------------------------------ hero parallax */
+.shop .lux-hero__float {
+  transform: translate(var(--px, 0px), calc(var(--py, 0px) + var(--pyp, 0px)));
+  will-change: transform;
+}
+.shop .lux-hero__frame--mini {
+  transform: translateY(var(--py, 0px));
+  will-change: transform;
+}
+.shop .lux-hero__sticker {
+  animation: heroStickerSpin 18s linear infinite;
+}
+@keyframes heroStickerSpin {
+  to { transform: rotate(360deg); }
+}
+
+/* hero animated stat strip */
+.shop .lux-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 2.25rem;
+  padding-top: 1.75rem;
+  border-top: 1px solid var(--color-border, rgba(22, 18, 14, 0.12));
+  max-width: 30rem;
+}
+.shop .lux-stat__num {
+  font-family: var(--font-display);
+  font-size: clamp(1.5rem, 3vw, 2.1rem);
+  font-weight: 600;
+  line-height: 1;
+  color: var(--lux-ink, #16120e);
+}
+.shop .lux-stat__num span { color: var(--lux-gold-deep, #a9863a); }
+.shop .lux-stat__label {
+  font-family: var(--font-ui);
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  margin-top: 0.4rem;
+}
+
+/* scroll cue */
+.shop .lux-hero__scroll {
+  position: absolute;
+  left: 50%;
+  bottom: 1.1rem;
+  transform: translateX(-50%);
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: var(--font-ui);
+  font-size: 0.62rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+.shop .lux-hero__scroll i {
+  width: 1px;
+  height: 2.2rem;
+  background: linear-gradient(var(--lux-gold, #c9a24b), transparent);
+  animation: scrollCue 1.8s ease-in-out infinite;
+  transform-origin: top;
+}
+@keyframes scrollCue {
+  0%, 100% { transform: scaleY(0.4); opacity: 0.4; }
+  50% { transform: scaleY(1); opacity: 1; }
+}
+
+/* ------------------------------------------------------------ trust marquee */
+.shop .trust-marquee {
+  overflow: hidden;
+  background: var(--lux-ink, #16120e);
+  color: var(--lux-cream, #f3ece0);
+  padding: 0.85rem 0;
+  position: relative;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+          mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+}
+.shop .trust-marquee__track {
+  display: inline-flex;
+  align-items: center;
+  gap: 3rem;
+  white-space: nowrap;
+  animation: marqueeScroll 28s linear infinite;
+  will-change: transform;
+}
+.shop .trust-marquee:hover .trust-marquee__track { animation-play-state: paused; }
+.shop .trust-marquee__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-family: var(--font-ui);
+  font-size: 0.8rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.shop .trust-marquee__item svg { color: var(--lux-gold, #c9a24b); flex-shrink: 0; }
+.shop .trust-marquee__dot { color: var(--lux-gold, #c9a24b); opacity: 0.6; }
+@keyframes marqueeScroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+/* ------------------------------------------------- interactive category tiles */
+.shop .cat-tile {
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.45s ease;
+}
+.shop .cat-tile:hover {
+  transform: translateY(-6px);
+}
+.shop .cat-tile__media {
+  overflow: hidden;
+  border-radius: var(--radius-md, 12px);
+}
+.shop .cat-tile__media .pimg__img {
+  transition: transform 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.shop .cat-tile:hover .cat-tile__media .pimg__img {
+  transform: scale(1.12);
+}
+.shop .cat-tile__cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.9rem;
+  font-family: var(--font-ui);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--lux-gold-deep, #a9863a);
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 0.4s ease, transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.shop .cat-tile:hover .cat-tile__cta {
+  opacity: 1;
+  transform: none;
+}
+.shop .cat-tile__cta svg {
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.shop .cat-tile:hover .cat-tile__cta svg {
+  transform: translateX(4px);
+}
+
+/* ------------------------------------------------------- animated promo banners */
+.shop .banner--promo,
+.shop .banner--wide {
+  position: relative;
+  overflow: hidden;
+}
+.shop .banner--promo .banner__media .pimg__img,
+.shop .banner--wide__media .pimg__img {
+  transition: transform 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.shop .banner--promo:hover .banner__media .pimg__img,
+.shop .banner--wide:hover .banner--wide__media .pimg__img {
+  transform: scale(1.08) rotate(-1deg);
+}
+/* diagonal light sweep on hover */
+.shop .banner--promo::before,
+.shop .banner--wide::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -60%;
+  width: 40%;
+  height: 100%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.22), transparent);
+  transform: skewX(-18deg);
+  transition: left 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
+  z-index: 1;
+}
+.shop .banner--promo:hover::before,
+.shop .banner--wide:hover::before {
+  left: 130%;
+}
+.shop .banner--promo > *,
+.shop .banner--wide > * { position: relative; z-index: 2; }
+
+/* limited-offer accent pulse on the eyebrow */
+.shop .banner--wide .eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+.shop .banner--wide .eyebrow::before {
+  content: "";
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--color-accent, #d97a1f);
+  animation: livePulse 1.6s ease-in-out infinite;
+}
+@keyframes livePulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(217, 122, 31, 0.55); }
+  50% { box-shadow: 0 0 0 6px rgba(217, 122, 31, 0); }
+}
+
+/* ---------------------------------------------------------- live deal countdown */
+.shop .pcard__timer--live .countdown-cell {
+  animation: countdownPop 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  position: relative;
+  overflow: hidden;
+}
+.shop .pcard__timer--live .countdown-cell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.18);
+  opacity: 0;
+  animation: countdownTick 1s steps(1) infinite;
+}
+@keyframes countdownPop {
+  from { transform: translateY(8px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+@keyframes countdownTick {
+  0% { opacity: 0.5; }
+  10%, 100% { opacity: 0; }
+}
+
+/* deal-card label badge made livelier */
+.shop .deal-card .badge--discount {
+  position: relative;
+  overflow: hidden;
+}
+.shop .deal-card .badge--discount::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -120%;
+  width: 60%;
+  height: 100%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.5), transparent);
+  transform: skewX(-18deg);
+  animation: badgeSweep 3s ease-in-out infinite;
+}
+@keyframes badgeSweep {
+  0%, 60% { left: -120%; }
+  100% { left: 160%; }
+}
+
+/* ---------------------------------------------------- newsletter glow breathing */
+.shop .lux-newsletter__glow {
+  animation: glowBreathe 6s ease-in-out infinite;
+}
+@keyframes glowBreathe {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.08); }
+}
+
+/* ----------------------------------------------------- responsive adjustments */
+@media (max-width: 1024px) {
+  .shop .pgrid--dense { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .shop .lux-stats { max-width: none; }
+}
+@media (max-width: 640px) {
+  .shop .pgrid--dense { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.85rem; }
+  .shop .lux-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.5rem; }
+  .shop .pcard__quickadd { opacity: 1; transform: none; } /* always visible on touch */
+  .shop .trust-marquee__track { gap: 1.75rem; }
+}
+
+/* -------------------------------------------------------------- reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .shop .trust-marquee__track,
+  .shop .lux-hero__sticker,
+  .shop .lux-hero__scroll i,
+  .shop .deal-card .badge--discount::after,
+  .shop .banner--wide .eyebrow::before,
+  .shop .lux-newsletter__glow,
+  .shop .pcard__timer--live .countdown-cell::after {
+    animation: none !important;
+  }
+  .shop .lux-hero__float,
+  .shop .lux-hero__frame--mini { transform: none !important; }
+  .shop .pcard__quickadd { transform: none; opacity: 1; }
+}
+
+/* ============================================================================
+   FASHION IMAGERY — cover fit + premium fabric-toned fallback tile
+   ========================================================================== */
+.shop .pimg__img,
+.shop .hero__img,
+.shop .lux-trendcard__img,
+.shop .lux-frame__img,
+.shop .lux-proofcard__img,
+.shop .lux-stl__img,
+.shop .lux-stl__thumbImg {
+  object-fit: cover;
+}
+
+/* graceful fallback: a woven fabric-like gradient in the garment's own tone */
+.shop .pimg--fallback {
+  position: relative; /* keeps the wrapper class's own aspect-ratio / height */
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+  background:
+    radial-gradient(120% 80% at 20% 10%, color-mix(in srgb, var(--fb-tone, #c9a87c) 70%, #fff) 0%, transparent 55%),
+    radial-gradient(120% 90% at 90% 100%, color-mix(in srgb, var(--fb-tone, #c9a87c) 85%, #000) 0%, transparent 60%),
+    linear-gradient(135deg, var(--fb-tone, #c9a87c), color-mix(in srgb, var(--fb-tone, #c9a87c) 75%, #16120e));
+}
+/* subtle woven texture */
+.shop .pimg--fallback::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.05) 0 2px, transparent 2px 5px),
+    repeating-linear-gradient(-45deg, rgba(0, 0, 0, 0.05) 0 2px, transparent 2px 5px);
+  pointer-events: none;
+}
+.shop .pimg--fallback__shine {
+  position: absolute;
+  top: 0;
+  left: -60%;
+  width: 45%;
+  height: 100%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.28), transparent);
+  transform: skewX(-18deg);
+  animation: fallbackShine 4.5s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+@keyframes fallbackShine {
+  0%, 70% { left: -60%; }
+  100% { left: 130%; }
+}
+.shop .pimg--fallback__label {
+  position: relative;
+  z-index: 2;
+  margin: 1rem;
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 500;
+  line-height: 1.2;
+  color: #fff;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.35);
+}
+
+/* ============================================================================
+   DESIGN POLISH — richer category tiles + hero finish now that photos are real
+   ========================================================================== */
+.shop .cat-tile__media {
+  width: 10.5rem;
+  align-self: stretch;
+}
+.shop .cat-tile__media .pimg {
+  height: 100%;
+  min-height: 12rem;
+}
+@media (max-width: 640px) {
+  .shop .cat-tile__media { width: 100%; }
+  .shop .cat-tile__media .pimg { min-height: 14rem; }
+}
+
+/* refined hero frames + subtle ring */
+.shop .lux-hero__frame--main {
+  box-shadow: 0 40px 80px -40px rgba(22, 18, 14, 0.55);
+}
+.shop .lux-hero__frame--mini {
+  box-shadow: 0 24px 48px -24px rgba(22, 18, 14, 0.5);
+  border: 4px solid var(--color-surface, #fff);
+}
+
+/* trending / lookbook frames: deepen the veil so overlaid text always reads */
+.shop .lux-trendcard__veil,
+.shop .lux-frame__veil {
+  background: linear-gradient(to top, rgba(18, 14, 10, 0.82) 0%, rgba(18, 14, 10, 0.25) 45%, transparent 75%);
+}
