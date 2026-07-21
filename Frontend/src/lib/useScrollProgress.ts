@@ -38,9 +38,14 @@ export function useScrollProgress<T extends HTMLElement = HTMLDivElement>(
   options: ScrollProgressOptions = {},
 ) {
   const rootRef = useRef<T>(null);
-  // keep latest options without re-running the effect
+  // Keep latest options without re-running the main effect below. Updated
+  // in its own effect (no deps — runs after every render/commit) rather
+  // than mutated directly during render, which is unsafe under concurrent
+  // rendering (a render can happen without committing).
   const optsRef = useRef(options);
-  optsRef.current = options;
+  useEffect(() => {
+    optsRef.current = options;
+  });
 
   useEffect(() => {
     const root = rootRef.current;

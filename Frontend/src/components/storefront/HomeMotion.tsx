@@ -159,12 +159,16 @@ function pad(n: number) {
  * mount (kept in a ref so it stays stable across re-renders).
  */
 export function CountdownTimer({ hours = 8 }: { hours?: number }) {
-  const deadline = useRef<number>(Date.now() + hours * 3600 * 1000);
+  // Lazy initializer, not a plain useRef(Date.now() + ...) value: a plain
+  // argument gets evaluated on every render even though useRef only uses it
+  // once, which makes Date.now() (impure) run on every render pass. The
+  // lazy-initializer form guarantees it only runs on mount.
+  const [deadline] = useState<number>(() => Date.now() + hours * 3600 * 1000);
   const [remaining, setRemaining] = useState(hours * 3600 * 1000);
 
   useEffect(() => {
     const tick = () => {
-      const ms = Math.max(deadline.current - Date.now(), 0);
+      const ms = Math.max(deadline - Date.now(), 0);
       setRemaining(ms);
     };
     tick();
