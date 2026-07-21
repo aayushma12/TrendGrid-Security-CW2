@@ -1,0 +1,100 @@
+# Brings up the full stack: Postgres + this backend (Backend) +
+# the sibling frontend (Frontend). Assumes the two project folders sit
+# side by side on disk, exactly as they do in this checkout:
+#
+#   some-parent-dir/
+#     Backend/   <- this file lives here
+#     Frontend/
+#
+# Usage:
+#   1. cp .env.example .env            (fill in real secrets)
+#   2. cp ../Frontend/.env.example ../Frontend/.env.development
+#   3. docker compose up --build
+#
+# The two apps have their own, unrelated Prisma schemas (this backend's
+# e-commerce data model vs. the frontend's tenant/theme/page-builder model),
+# so they get separate databases — postgres/init-multiple-dbs.sh creates the
+# second one on first boot. Schema sync/migrations for both run automatically
+# via the one-shot `api-migrate` / `web-migrate` services below.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: trendgrid_api
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/init-multiple-dbs.sh:/docker-entrypoint-initdb.d/init-multiple-dbs.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # One-shot: syncs this backend's Prisma schema (no migrations folder in
+  # this project — it uses `db push`, safe to run on every startup).
+  api-migrate:
+    build:
+      context: .
+      target: build
+    command: npx prisma db push --skip-generate
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/trendgrid_api
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    build:
+      context: .
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/trendgrid_api
+      CORS_ORIGIN: http://localhost:3000
+      FRONTEND_URL: http://localhost:3000
+    env_file:
+      - .env
+    depends_on:
+      api-migrate:
+        condition: service_completed_successfully
+
+  # One-shot: applies this frontend's own Prisma migrations (theme/page-builder DB).
+  web-migrate:
+    build:
+      context: ../Frontend
+      target: build
+    command: npx prisma migrate deploy
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/trendgriddb_frontend
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ../Frontend
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:5000/api/v1
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/trendgriddb_frontend
+      NODE_ENV: production
+    depends_on:
+      web-migrate:
+        condition: service_completed_successfully
+      api:
+        condition: service_started
+
+volumes:
+  pgdata:
