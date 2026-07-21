@@ -6,9 +6,10 @@ import { env } from '../../../config/env';
 import { UnauthorizedError, BadRequestError } from '../../../utils/errors';
 import { signAccessToken, signRefreshToken } from '../../../middleware/auth';
 import { logger } from '../../../utils/logger';
-import { encryptField, decryptField, hashUserAgent } from '../../../utils/crypto';
+import { encryptField, decryptField, hashUserAgent, hashToken, generateToken } from '../../../utils/crypto';
 import { verifyCaptcha } from '../../../utils/captcha';
 import { sendSecurityAlert } from '../../../utils/securityAlert';
+import { sendEmail } from '../../../utils/email';
 
 import { findByEmail, findById, findByIdWithSecurity } from '../../user/repository';
 import * as userRepo from '../../user/repository';
@@ -18,7 +19,16 @@ import { User, UserWithPassword } from '../../user/types';
 
 import * as refreshTokenRepo from '../repository/refreshToken';
 import * as passwordHistoryRepo from '../repository/passwordHistory';
+import * as passwordResetRepo from '../repository/passwordReset';
+import * as emailOtpRepo from '../repository/emailOtp';
 import { buildOtpAuthUrl, generateBackupCodes, generateMfaSecret, matchBackupCode, verifyTotp } from '../utils/mfa';
+import { generateEmailOtpCode, hashEmailOtpCode, verifyEmailOtpCode } from '../utils/emailOtp';
+import {
+  buildResetEmailHtml,
+  buildResetEmailText,
+  buildMfaOtpEmailHtml,
+  buildMfaOtpEmailText,
+} from '../utils/emailTemplates';
 
 import { AUTH_MESSAGES, getPermissionsForRole } from '../constants';
 
@@ -38,9 +48,35 @@ export interface AuthTokensResponse {
 export interface MfaChallengeResponse {
   mfaRequired: true;
   mfaToken: string;
+  /** Tells the frontend whether to prompt for an authenticator-app code or
+   *  tell the user a code was emailed (and offer a resend). */
+  mfaMethod: 'totp' | 'email';
 }
 
 const MFA_CHALLENGE_EXPIRES_IN = '5m';
+// Kept equal to MFA_CHALLENGE_EXPIRES_IN on purpose — an email OTP that
+// outlives the challenge token it belongs to would just fail at the JWT
+// verify step anyway, so there's no reason to give it a separate lifetime.
+const MFA_EMAIL_OTP_TTL_MIN = 5;
+
+const sendMfaOtpEmail = async (user: Pick<User, 'id' | 'email' | 'firstName'>, purpose: emailOtpRepo.EmailOtpPurpose) => {
+  await emailOtpRepo.invalidateAllForUser(user.id, purpose);
+
+  const code = generateEmailOtpCode();
+  await emailOtpRepo.create({
+    userId: user.id,
+    codeHash: await hashEmailOtpCode(code),
+    purpose,
+    expiresAt: new Date(Date.now() + MFA_EMAIL_OTP_TTL_MIN * 60 * 1000),
+  });
+
+  await sendEmail({
+    to: user.email,
+    subject: 'Your TrendGrid verification code',
+    text: buildMfaOtpEmailText(user.firstName, code, MFA_EMAIL_OTP_TTL_MIN),
+    html: buildMfaOtpEmailHtml(user.firstName, code, MFA_EMAIL_OTP_TTL_MIN),
+  });
+};
 
 const isPasswordExpired = (user: Pick<UserWithPassword, 'passwordChangedAt'>): boolean => {
   if (env.security.passwordMaxAgeDays <= 0) return false;
@@ -91,7 +127,9 @@ export const login = async (
 
   if (user.lockedUntil && user.lockedUntil.getTime() > Date.now()) {
     logger.warn(`Login blocked — account locked email=${user.email} id=${user.id}`);
-    throw new UnauthorizedError(AUTH_MESSAGES.ACCOUNT_LOCKED);
+    throw new UnauthorizedError(AUTH_MESSAGES.ACCOUNT_LOCKED, [
+      { field: 'email', message: AUTH_MESSAGES.ACCOUNT_LOCKED, code: 'ACCOUNT_LOCKED' },
+    ]);
   }
 
   if (!user.isActive) {
@@ -116,8 +154,12 @@ export const login = async (
   await userRepo.resetFailedLogins(user.id);
 
   if (user.mfaEnabled) {
-    logger.info(`MFA challenge issued email=${user.email} id=${user.id}`);
-    return { mfaRequired: true, mfaToken: signMfaChallengeToken(user.id) };
+    const method = user.mfaMethod === 'email' ? 'email' : 'totp';
+    if (method === 'email') {
+      await sendMfaOtpEmail(user, 'mfa_login');
+    }
+    logger.info(`MFA challenge issued email=${user.email} id=${user.id} method=${method}`);
+    return { mfaRequired: true, mfaToken: signMfaChallengeToken(user.id), mfaMethod: method };
   }
 
   logger.info(`User login email=${user.email} id=${user.id}`);
@@ -139,12 +181,19 @@ export const verifyMfaLogin = async (
   }
 
   const user = await findByIdWithSecurity(userId);
-  if (!user || !user.mfaEnabled || !user.mfaSecret) {
+  if (!user || !user.mfaEnabled) {
     throw new UnauthorizedError(AUTH_MESSAGES.INVALID_MFA_TOKEN);
   }
 
-  const secret = decryptField(user.mfaSecret);
-  let ok = verifyTotp(code, secret);
+  let ok: boolean;
+  if (user.mfaMethod === 'email') {
+    const activeOtp = await emailOtpRepo.findActive(user.id, 'mfa_login');
+    ok = Boolean(activeOtp) && (await verifyEmailOtpCode(code, activeOtp!.codeHash));
+    if (ok) await emailOtpRepo.consume(activeOtp!.id);
+  } else {
+    if (!user.mfaSecret) throw new UnauthorizedError(AUTH_MESSAGES.INVALID_MFA_TOKEN);
+    ok = verifyTotp(code, decryptField(user.mfaSecret));
+  }
 
   if (!ok) {
     const matchedHash = await matchBackupCode(code, user.mfaBackupCodes);
@@ -191,9 +240,62 @@ export const confirmMfaSetup = async (
   if (!verifyTotp(code, secret)) throw new BadRequestError(AUTH_MESSAGES.INVALID_MFA_CODE);
 
   const { plaintext, hashes } = await generateBackupCodes();
-  await userRepo.enableMfa(user.id, hashes);
-  logger.info(`MFA enabled id=${user.id}`);
+  await userRepo.enableMfa(user.id, 'totp', hashes);
+  logger.info(`MFA enabled (totp) id=${user.id}`);
   return { backupCodes: plaintext };
+};
+
+/** Email MFA has no persistent secret to stage — enrollment just proves the
+ *  user can read their own inbox, so setup and send happen in one step. */
+export const setupMfaEmail = async (userId: string): Promise<void> => {
+  const user = await findByIdWithSecurity(userId);
+  if (!user) throw new UnauthorizedError(AUTH_MESSAGES.INVALID_CREDENTIALS);
+  if (user.mfaEnabled) throw new BadRequestError(AUTH_MESSAGES.MFA_ALREADY_ENABLED);
+
+  await sendMfaOtpEmail(user, 'mfa_enroll');
+  logger.info(`Email MFA enrollment code sent id=${user.id}`);
+};
+
+export const confirmMfaEmailSetup = async (
+  userId: string,
+  code: string,
+): Promise<{ backupCodes: string[] }> => {
+  const user = await findByIdWithSecurity(userId);
+  if (!user) throw new UnauthorizedError(AUTH_MESSAGES.INVALID_CREDENTIALS);
+  if (user.mfaEnabled) throw new BadRequestError(AUTH_MESSAGES.MFA_ALREADY_ENABLED);
+
+  const activeOtp = await emailOtpRepo.findActive(user.id, 'mfa_enroll');
+  if (!activeOtp || !(await verifyEmailOtpCode(code, activeOtp.codeHash))) {
+    throw new BadRequestError(AUTH_MESSAGES.INVALID_MFA_CODE);
+  }
+  await emailOtpRepo.consume(activeOtp.id);
+
+  const { plaintext, hashes } = await generateBackupCodes();
+  await userRepo.enableMfa(user.id, 'email', hashes);
+  logger.info(`MFA enabled (email) id=${user.id}`);
+  return { backupCodes: plaintext };
+};
+
+/** Re-send the login-challenge OTP — the mfaToken alone identifies the user,
+ *  so this stays public/rate-limited like mfa/verify rather than requiring auth
+ *  (the user isn't logged in yet, that's the whole point of the challenge). */
+export const resendMfaLoginOtp = async (mfaToken: string): Promise<void> => {
+  let userId: string;
+  try {
+    const payload = jwt.verify(mfaToken, env.jwt.secret) as { id?: string; mfaPending?: boolean };
+    if (!payload?.id || !payload.mfaPending) throw new Error('Not an MFA challenge token');
+    userId = payload.id;
+  } catch {
+    throw new UnauthorizedError(AUTH_MESSAGES.INVALID_MFA_TOKEN);
+  }
+
+  const user = await findByIdWithSecurity(userId);
+  if (!user || !user.mfaEnabled || user.mfaMethod !== 'email') {
+    throw new UnauthorizedError(AUTH_MESSAGES.INVALID_MFA_TOKEN);
+  }
+
+  await sendMfaOtpEmail(user, 'mfa_login');
+  logger.info(`Email MFA login code resent id=${user.id}`);
 };
 
 export const disableMfa = async (userId: string, currentPassword: string): Promise<void> => {
@@ -223,9 +325,11 @@ export const register = async (
 };
 
 export const refresh = async (
-  refreshToken: string,
+  refreshToken: string | undefined,
   ctx: RequestContext = {},
 ): Promise<AuthTokensResponse> => {
+  if (!refreshToken) throw new UnauthorizedError(AUTH_MESSAGES.INVALID_REFRESH_TOKEN);
+
   let payload: { id?: string; jti?: string };
   try {
     payload = jwt.verify(refreshToken, env.jwt.refreshSecret) as { id?: string; jti?: string };
@@ -354,4 +458,118 @@ export const changePassword = async (
   await refreshTokenRepo.revokeAllForUser(userId);
 
   logger.warn(`Password changed id=${userId}`);
+};
+
+/**
+ * Forgot password — always resolves the same way whether or not the email
+ * matches an account, so a caller can never use this endpoint to discover
+ * which emails are registered (the same anti-enumeration principle as login).
+ */
+export const requestPasswordReset = async (
+  dto: { email: string; captchaToken?: string },
+  ctx: RequestContext = {},
+): Promise<void> => {
+  const captchaOk = await verifyCaptcha(dto.captchaToken, ctx.ip);
+  if (!captchaOk) throw new BadRequestError(AUTH_MESSAGES.CAPTCHA_FAILED);
+
+  const normalizedEmail = dto.email.toLowerCase().trim();
+  const user = await findByEmail(normalizedEmail);
+
+  if (user) {
+    // Only one active reset link per account — a stale token from an
+    // earlier request (possibly seen by someone else, e.g. a shared inbox)
+    // should stop working the moment a fresh one is issued.
+    await passwordResetRepo.invalidateAllForUser(user.id);
+
+    const rawToken = generateToken();
+    await passwordResetRepo.create({
+      userId: user.id,
+      tokenHash: hashToken(rawToken),
+      expiresAt: new Date(Date.now() + env.security.passwordResetTokenTtlMin * 60 * 1000),
+    });
+
+    const resetUrl = `${env.frontendUrl}/reset-password?token=${rawToken}`;
+    await sendEmail({
+      to: user.email,
+      subject: 'Reset your TrendGrid password',
+      text: buildResetEmailText(user.firstName, resetUrl, env.security.passwordResetTokenTtlMin),
+      html: buildResetEmailHtml(user.firstName, resetUrl, env.security.passwordResetTokenTtlMin),
+    });
+
+    logger.info(`Password reset requested id=${user.id} ip=${ctx.ip ?? 'unknown'}`);
+    sendSecurityAlert('password_reset_requested', {
+      userId: user.id,
+      email: user.email,
+      ip: ctx.ip,
+      userAgent: ctx.userAgent,
+    });
+  } else {
+    // Same log level either way — an attacker timing/log-diffing this
+    // endpoint shouldn't be able to tell a real email from a fake one.
+    logger.info(`Password reset requested for unknown email ip=${ctx.ip ?? 'unknown'} (no-op)`);
+  }
+};
+
+/**
+ * Non-destructive check used by the reset-password page to show a "this
+ * link is no longer valid" state *before* rendering the form, instead of
+ * only discovering that on submit. Deliberately does not consume/mark the
+ * token — only the actual reset (below) does that.
+ */
+export const checkResetToken = async (token: string): Promise<boolean> => {
+  const resetRow = await passwordResetRepo.findValidByTokenHash(hashToken(token));
+  return Boolean(resetRow);
+};
+
+export const resetPassword = async (
+  token: string,
+  newPassword: string,
+  ctx: RequestContext = {},
+): Promise<void> => {
+  const resetRow = await passwordResetRepo.findValidByTokenHash(hashToken(token));
+  if (!resetRow) {
+    logger.warn(`Password reset attempted with invalid/expired token ip=${ctx.ip ?? 'unknown'}`);
+    sendSecurityAlert('password_reset_invalid_token', { ip: ctx.ip, userAgent: ctx.userAgent });
+    throw new BadRequestError(AUTH_MESSAGES.INVALID_RESET_TOKEN);
+  }
+
+  const user = await findByIdWithSecurity(resetRow.userId);
+  if (!user) throw new BadRequestError(AUTH_MESSAGES.INVALID_RESET_TOKEN);
+
+  const matchesCurrent = await bcrypt.compare(newPassword, user.passwordHash);
+  if (matchesCurrent) {
+    throw new BadRequestError(AUTH_MESSAGES.PASSWORD_REUSED, [
+      { field: 'newPassword', message: AUTH_MESSAGES.PASSWORD_REUSED },
+    ]);
+  }
+
+  if (env.security.passwordHistoryCount > 0) {
+    const recent = await passwordHistoryRepo.recentHashes(user.id, env.security.passwordHistoryCount);
+    for (const oldHash of recent) {
+      // eslint-disable-next-line no-await-in-loop
+      if (await bcrypt.compare(newPassword, oldHash)) {
+        throw new BadRequestError(AUTH_MESSAGES.PASSWORD_REUSED, [
+          { field: 'newPassword', message: AUTH_MESSAGES.PASSWORD_REUSED },
+        ]);
+      }
+    }
+  }
+
+  // MFA (mfaEnabled/mfaSecret/mfaBackupCodes) is never touched here — a
+  // password reset changes the password only; a user with MFA enrolled
+  // still has to complete it on their next login.
+  const passwordHash = await bcrypt.hash(newPassword, env.jwt.saltRounds);
+  await passwordHistoryRepo.record(user.id, user.passwordHash);
+  await userService.updatePassword(user.id, passwordHash);
+
+  await passwordResetRepo.markUsed(resetRow.id);
+  await passwordResetRepo.invalidateAllForUser(user.id);
+
+  // Same trust-boundary logic as a normal password change — a reset means
+  // any existing session (including one an attacker may hold) is killed.
+  await refreshTokenRepo.revokeAllForUser(user.id);
+  await userRepo.resetFailedLogins(user.id);
+
+  logger.warn(`Password reset completed id=${user.id} ip=${ctx.ip ?? 'unknown'}`);
+  sendSecurityAlert('password_reset_completed', { userId: user.id, ip: ctx.ip, userAgent: ctx.userAgent });
 };

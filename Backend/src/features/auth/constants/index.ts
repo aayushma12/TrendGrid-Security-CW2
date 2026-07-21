@@ -17,11 +17,15 @@ export const AUTH_MESSAGES = {
   CAPTCHA_FAILED: 'CAPTCHA verification failed. Please try again.',
   MFA_REQUIRED: 'MFA verification required.',
   MFA_SETUP_SUCCESS: 'MFA enrolled. Store your backup codes somewhere safe.',
+  MFA_EMAIL_CODE_SENT: 'A verification code has been sent to your email.',
   MFA_DISABLED_SUCCESS: 'MFA disabled.',
   INVALID_MFA_CODE: 'Invalid MFA code.',
   INVALID_MFA_TOKEN: 'Invalid or expired MFA challenge. Please log in again.',
   MFA_ALREADY_ENABLED: 'MFA is already enabled on this account.',
   MFA_NOT_ENABLED: 'MFA is not enabled on this account.',
+  FORGOT_PASSWORD_SENT: 'If an account exists for that email, a password reset link has been sent.',
+  INVALID_RESET_TOKEN: 'This reset link is invalid or has expired. Please request a new one.',
+  RESET_PASSWORD_SUCCESS: 'Password reset successfully. Please log in with your new password.',
 } as const;
 
 /** Role-based permissions returned on login for client-side UI gating. */

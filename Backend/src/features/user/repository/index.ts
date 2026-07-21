@@ -28,7 +28,11 @@ export interface UpdateUserRecord {
   avatarPublicId?: string | null;
 }
 
-const toUser = (r: PrismaUser): User => ({
+// passwordHash is omitted by default at the Prisma client level (see
+// config/prisma.ts) — every plain query now structurally returns this
+// narrower shape. toUser() never reads passwordHash anyway, so this just
+// makes its signature match what actually comes back at runtime.
+const toUser = (r: Omit<PrismaUser, 'passwordHash'>): User => ({
   id: r.id,
   firstName: r.firstName,
   lastName: r.lastName,
@@ -41,6 +45,8 @@ const toUser = (r: PrismaUser): User => ({
   deletedBy: r.deletedBy ?? undefined,
   avatarUrl: r.avatarUrl ?? undefined,
   avatarPublicId: r.avatarPublicId ?? undefined,
+  mfaEnabled: r.mfaEnabled,
+  mfaMethod: r.mfaMethod ?? undefined,
   createdAt: r.createdAt,
   updatedAt: r.updatedAt,
 });
@@ -51,7 +57,6 @@ const toUserWithPassword = (r: PrismaUser): UserWithPassword => ({
   failedLoginAttempts: r.failedLoginAttempts,
   lockedUntil: r.lockedUntil ?? undefined,
   passwordChangedAt: r.passwordChangedAt,
-  mfaEnabled: r.mfaEnabled,
   mfaSecret: r.mfaSecret ?? undefined,
   mfaBackupCodes: r.mfaBackupCodes,
 });
@@ -67,12 +72,19 @@ export const findById = async (id: string): Promise<User | null> => {
 export const findByEmail = async (email: string): Promise<UserWithPassword | null> => {
   const r = await prisma.user.findFirst({
     where: { email, isDeleted: false },
+    // Opt back into passwordHash — the client-level default omits it (see
+    // config/prisma.ts). This is the login path; it's the one place that
+    // legitimately needs the hash to run bcrypt.compare against it.
+    omit: { passwordHash: false },
   });
   return r ? toUserWithPassword(r) : null;
 };
 
 export const findByIdWithSecurity = async (id: string): Promise<UserWithPassword | null> => {
-  const r = await prisma.user.findFirst({ where: { id, isDeleted: false } });
+  const r = await prisma.user.findFirst({
+    where: { id, isDeleted: false },
+    omit: { passwordHash: false },
+  });
   return r ? toUserWithPassword(r) : null;
 };
 
@@ -158,25 +170,25 @@ export const resetFailedLogins = async (id: string): Promise<void> => {
 };
 
 // ---------------------------------------------------------------------------
-// MFA (TOTP)
+// MFA (TOTP or email)
 // ---------------------------------------------------------------------------
 
-/** Stage a pending MFA secret (not yet enabled — enabled only after the setup code is verified). */
+/** Stage a pending TOTP secret (not yet enabled — enabled only after the setup code is verified). */
 export const setPendingMfaSecret = async (id: string, encryptedSecret: string): Promise<void> => {
   await prisma.user.update({ where: { id }, data: { mfaSecret: encryptedSecret, mfaEnabled: false } });
 };
 
-export const enableMfa = async (id: string, backupCodeHashes: string[]): Promise<void> => {
+export const enableMfa = async (id: string, method: 'totp' | 'email', backupCodeHashes: string[]): Promise<void> => {
   await prisma.user.update({
     where: { id },
-    data: { mfaEnabled: true, mfaBackupCodes: backupCodeHashes },
+    data: { mfaEnabled: true, mfaMethod: method, mfaBackupCodes: backupCodeHashes },
   });
 };
 
 export const disableMfa = async (id: string): Promise<void> => {
   await prisma.user.update({
     where: { id },
-    data: { mfaEnabled: false, mfaSecret: null, mfaBackupCodes: [] },
+    data: { mfaEnabled: false, mfaMethod: null, mfaSecret: null, mfaBackupCodes: [] },
   });
 };
 

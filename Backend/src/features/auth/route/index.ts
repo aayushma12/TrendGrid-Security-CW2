@@ -1,29 +1,47 @@
 import { Router } from 'express';
 
 import { defineRoutes } from '../../../utils/defineRoute';
-import { loginRateLimit, mfaRateLimit, refreshRateLimit, registerRateLimit } from '../../../middleware/rateLimit';
+import {
+  forgotPasswordRateLimit,
+  loginRateLimit,
+  mfaRateLimit,
+  refreshRateLimit,
+  registerRateLimit,
+  resetPasswordRateLimit,
+} from '../../../middleware/rateLimit';
 
 import {
   changePasswordController,
+  forgotPasswordController,
   loginController,
   logoutAllController,
   logoutController,
+  meController,
+  mfaConfirmEmailSetupController,
   mfaConfirmSetupController,
   mfaDisableController,
+  mfaResendController,
   mfaSetupController,
+  mfaSetupEmailController,
   mfaVerifyLoginController,
   refreshController,
   registerController,
+  resetPasswordController,
+  validateResetTokenController,
 } from '../controller';
 import {
   changePasswordSchema,
+  forgotPasswordSchema,
   loginSchema,
   logoutSchema,
   mfaDisableSchema,
+  mfaResendSchema,
   mfaVerifyLoginSchema,
   mfaVerifySetupSchema,
   refreshSchema,
   registerSchema,
+  resetPasswordSchema,
+  validateResetTokenQuerySchema,
 } from '../validator';
 
 const router = Router();
@@ -60,6 +78,13 @@ defineRoutes(router, [
     preAuth: [refreshRateLimit],
     schema: { body: refreshSchema },
     handler: refreshController,
+  },
+  {
+    method: 'get',
+    path: '/me',
+    auth: 'authenticated',
+    schema: {},
+    handler: meController,
   },
   {
     method: 'post',
@@ -99,10 +124,58 @@ defineRoutes(router, [
   },
   {
     method: 'post',
+    path: '/mfa/setup/email',
+    auth: 'authenticated',
+    preAuth: [mfaRateLimit],
+    schema: {},
+    handler: mfaSetupEmailController,
+  },
+  {
+    method: 'post',
+    path: '/mfa/setup/email/confirm',
+    auth: 'authenticated',
+    preAuth: [mfaRateLimit],
+    schema: { body: mfaVerifySetupSchema },
+    handler: mfaConfirmEmailSetupController,
+  },
+  {
+    method: 'post',
+    path: '/mfa/resend',
+    auth: 'public',
+    preAuth: [mfaRateLimit],
+    schema: { body: mfaResendSchema },
+    handler: mfaResendController,
+  },
+  {
+    method: 'post',
     path: '/mfa/disable',
     auth: 'authenticated',
     schema: { body: mfaDisableSchema },
     handler: mfaDisableController,
+  },
+  {
+    method: 'post',
+    path: '/forgot-password',
+    auth: 'public',
+    preAuth: [forgotPasswordRateLimit],
+    schema: { body: forgotPasswordSchema },
+    handler: forgotPasswordController,
+  },
+  {
+    method: 'get',
+    path: '/reset-password/validate',
+    auth: 'public',
+    preAuth: [resetPasswordRateLimit],
+    schema: { query: validateResetTokenQuerySchema },
+    handler: validateResetTokenController,
+  },
+  {
+    method: 'post',
+    path: '/reset-password',
+    auth: 'public',
+    preAuth: [resetPasswordRateLimit],
+    schema: { body: resetPasswordSchema },
+    handler: resetPasswordController,
   },
 ]);
 

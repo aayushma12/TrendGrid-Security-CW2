@@ -2,7 +2,8 @@
 // Every feature adds its models here. Run `npm run prisma:migrate` after edits.
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["omitApi"]
 }
 
 datasource db {
@@ -17,19 +18,19 @@ enum UserRole {
 }
 
 model User {
-  id             String   @id @default(uuid())
+  id             String    @id @default(uuid())
   firstName      String
   lastName       String
-  email          String   @unique
+  email          String    @unique
   phoneNumber    String?
   passwordHash   String
-  role           UserRole @default(USER)
-  isActive       Boolean  @default(true)
+  role           UserRole  @default(USER)
+  isActive       Boolean   @default(true)
   avatarUrl      String?
   avatarPublicId String?
   isDeleted      Boolean   @default(false)
   deletedAt      DateTime?
-  deletedBy        String?
+  deletedBy      String?
 
   // ---- Brute-force / account lockout ----
   failedLoginAttempts Int       @default(0)
@@ -38,15 +39,17 @@ model User {
   // ---- Password policy (expiry + reuse prevention via PasswordHistory) ----
   passwordChangedAt DateTime @default(now())
 
-  // ---- MFA (TOTP) ----
-  mfaEnabled        Boolean  @default(false)
-  /// AES-256-GCM encrypted TOTP secret (see src/utils/crypto.ts). Null until enrolled.
-  mfaSecret         String?
+  // ---- MFA (TOTP or email) ----
+  mfaEnabled     Boolean  @default(false)
+  /// "totp" | "email" — which second factor is active. Null until enrolled.
+  mfaMethod      String?
+  /// AES-256-GCM encrypted TOTP secret (see src/utils/crypto.ts). Null until enrolled via TOTP.
+  mfaSecret      String?
   /// bcrypt-hashed one-time backup codes, consumed on use.
-  mfaBackupCodes     String[] @default([])
+  mfaBackupCodes String[] @default([])
 
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   cart            Cart?
   wishlist        Wishlist?
@@ -55,6 +58,8 @@ model User {
   couponUsages    CouponUsage[]
   refreshTokens   RefreshToken[]
   passwordHistory PasswordHistory[]
+  passwordResets  PasswordReset[]
+  emailOtps       EmailOtp[]
 
   @@index([email])
   @@index([role])
@@ -95,6 +100,45 @@ model PasswordHistory {
   @@map("password_history")
 }
 
+/// Forgot-password reset tokens. The raw token is emailed to the user and
+/// never stored — only its SHA-256 hash is persisted, so a database leak
+/// alone can't be used to reset accounts (same principle as passwordHash).
+model PasswordReset {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("password_resets")
+}
+
+/// One-time email MFA codes — both enrollment ("prove you own this inbox
+/// before we turn email MFA on") and login-time challenges. Same
+/// never-store-the-raw-value principle as PasswordReset, but bcrypt-hashed
+/// (like mfaBackupCodes) rather than SHA-256, since a 6-digit code is
+/// low-entropy and deliberately slow hashing/rate-limiting is what protects
+/// it — unlike the 256-bit reset token, whose entropy alone is the defense.
+model EmailOtp {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeHash  String
+  /// "mfa_enroll" | "mfa_login"
+  purpose   String
+  expiresAt DateTime
+  consumedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, purpose])
+  @@index([expiresAt])
+  @@map("email_otps")
+}
+
 model Category {
   id               String     @id @default(uuid())
   name             String
@@ -115,6 +159,26 @@ model Category {
   @@index([isFeatured])
   @@index([name])
   @@map("categories")
+}
+
+/// Admin-curated merchandising collection (e.g. "Men", "Summer Collection",
+/// "Best Sellers") — cross-cuts the Category product-type tree rather than
+/// replacing it. A product can belong to any number of collections.
+model Collection {
+  id            String    @id @default(uuid())
+  name          String    @unique
+  description   String?
+  imageUrl      String?
+  imagePublicId String?
+  isActive      Boolean   @default(true)
+  displayOrder  Int       @default(0)
+  products      Product[] @relation("ProductCollections")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([isActive])
+  @@index([displayOrder])
+  @@map("collections")
 }
 
 // =========================================================================
@@ -168,13 +232,18 @@ model Product {
   labels      String[]
   collections String[]
 
+  /// Admin-curated merchandising collections (Men, Summer Collection, ...).
+  /// Distinct from the free-text `collections` array above, which holds
+  /// seed-generated season/occasion keywords.
+  curatedCollections Collection[] @relation("ProductCollections")
+
   // Rich sub-resources (one-to-many)
   characteristics ProductCharacteristic[]
   variants        ProductVariant[]
 
   // Commerce
-  reviews        Review[]
-  wishlistedBy   WishlistItem[]
+  reviews      Review[]
+  wishlistedBy WishlistItem[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -248,7 +317,6 @@ model ProductVariantImage {
   @@map("product_variant_images")
 }
 
-
 // =========================================================================
 // BANNERS (Special Offers — announcement bar / hero / promo strips)
 // =========================================================================
@@ -260,23 +328,23 @@ enum BannerPlacement {
 }
 
 model Banner {
-  id         String          @id @default(uuid())
-  placement  BannerPlacement
-  title      String
-  subtext    String?
-  ctaText    String?
-  ctaLink    String?
-  bgColor    String          @default("#101828")
-  textColor  String          @default("#ffffff")
+  id            String          @id @default(uuid())
+  placement     BannerPlacement
+  title         String
+  subtext       String?
+  ctaText       String?
+  ctaLink       String?
+  bgColor       String          @default("#101828")
+  textColor     String          @default("#ffffff")
   imageUrl      String?
   imagePublicId String?
-  sortOrder  Int             @default(0)
-  startsAt   DateTime
-  expiresAt  DateTime
-  isActive   Boolean         @default(true)
-  isDeleted  Boolean         @default(false)
-  createdAt  DateTime        @default(now())
-  updatedAt  DateTime        @updatedAt
+  sortOrder     Int             @default(0)
+  startsAt      DateTime
+  expiresAt     DateTime
+  isActive      Boolean         @default(true)
+  isDeleted     Boolean         @default(false)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
 
   @@index([placement, isActive, isDeleted])
   @@index([startsAt, expiresAt])
@@ -446,16 +514,18 @@ enum PaymentStatus {
   REFUNDED
 }
 
-/// How the customer pays. COD is the only live method today; add gateway
-/// methods (ESEWA, KHALTI, CARD, ...) here when a payment integration lands.
+/// How the customer pays. COD is cash on delivery; ESEWA is the online
+/// gateway (Nepal). Add further gateway methods (KHALTI, CARD, ...) here
+/// when another integration lands.
 enum PaymentMethod {
   COD
+  ESEWA
 }
 
 model Order {
-  id            String @id @default(uuid())
-  orderNumber   String @unique
-  invoiceNumber String @unique
+  id             String @id @default(uuid())
+  orderNumber    String @unique
+  invoiceNumber  String @unique
   /// Customer-facing tracking code, e.g. TRK928374923. Generated at placement.
   trackingNumber String @unique
 
@@ -481,36 +551,37 @@ model Order {
 
   /// AES-256-GCM encrypted at the application layer (see src/utils/crypto.ts).
   /// Stored as ciphertext text, not native Json, so it's opaque at rest.
-  shippingAddress String @db.Text
+  shippingAddress String  @db.Text
   /// AES-256-GCM encrypted at the application layer (see src/utils/crypto.ts).
-  billingAddress  String @db.Text
+  billingAddress  String  @db.Text
   customerNote    String?
 
-  items         OrderItem[]
-  couponUsages  CouponUsage[]
-  reviews       Review[]
-  statusHistory OrderStatusHistory[]
+  items               OrderItem[]
+  couponUsages        CouponUsage[]
+  reviews             Review[]
+  statusHistory       OrderStatusHistory[]
+  paymentTransactions PaymentTransaction[]
 
   /// Auto-calculated at placement (placedAt + estimated delivery window) unless overridden.
   estimatedDelivery DateTime?
 
-  placedAt            DateTime  @default(now())
-  confirmedAt          DateTime?
-  processingAt         DateTime?
-  packedAt             DateTime?
-  readyForShipmentAt   DateTime?
-  shippedAt            DateTime?
-  outForDeliveryAt     DateTime?
-  deliveredAt          DateTime?
-  cancelledAt          DateTime?
-  cancelReason         String?
-  returnedAt           DateTime?
-  returnReason         String?
-  refundedAt           DateTime?
+  placedAt           DateTime  @default(now())
+  confirmedAt        DateTime?
+  processingAt       DateTime?
+  packedAt           DateTime?
+  readyForShipmentAt DateTime?
+  shippedAt          DateTime?
+  outForDeliveryAt   DateTime?
+  deliveredAt        DateTime?
+  cancelledAt        DateTime?
+  cancelReason       String?
+  returnedAt         DateTime?
+  returnReason       String?
+  refundedAt         DateTime?
   /// Amount actually refunded (supports partial refunds). Null = never refunded.
-  refundAmount         Decimal?  @db.Decimal(10, 2)
-  refundNote           String?
-  failedAt             DateTime?
+  refundAmount       Decimal?  @db.Decimal(10, 2)
+  refundNote         String?
+  failedAt           DateTime?
 
   isDeleted Boolean   @default(false)
   deletedAt DateTime?
@@ -543,6 +614,42 @@ model OrderStatusHistory {
   @@index([orderId])
   @@index([updatedAt])
   @@map("order_status_history")
+}
+
+/// One row per payment-gateway attempt against an order (COD orders never get
+/// one). Records what the gateway told us so a verification result is never
+/// trusted twice and every attempt is auditable, even failed/abandoned ones.
+model PaymentTransaction {
+  id      String @id @default(uuid())
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  gateway PaymentMethod
+
+  /// Our own idempotency key handed to the gateway at initiation
+  /// (eSewa's transaction_uuid). Unique so a retried initiation for the
+  /// same attempt can never be double-counted.
+  referenceId  String  @unique
+  /// The gateway's own transaction/ref code, populated once it responds
+  /// (eSewa's `transaction_code` / `ref_id`).
+  gatewayRefId String?
+
+  amount Decimal @db.Decimal(10, 2)
+
+  status PaymentStatus @default(PENDING)
+
+  /// Raw gateway callback/verification payload, kept for audit + support.
+  gatewayResponse Json?
+
+  initiatedAt DateTime  @default(now())
+  verifiedAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orderId])
+  @@index([status])
+  @@map("payment_transactions")
 }
 
 model OrderItem {

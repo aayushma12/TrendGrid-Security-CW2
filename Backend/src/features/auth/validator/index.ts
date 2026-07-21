@@ -6,8 +6,10 @@ const passwordSchema = z
   .string()
   .min(8, 'Password must be at least 8 characters')
   .max(128, 'Password too long')
+  .regex(/[a-z]/, 'Password must include a lowercase letter')
   .regex(/[A-Z]/, 'Password must include an uppercase letter')
-  .regex(/[0-9]/, 'Password must include a number');
+  .regex(/[0-9]/, 'Password must include a number')
+  .regex(/[^A-Za-z0-9]/, 'Password must include a special character');
 
 export const loginSchema = z.object({
   email: z.string().trim().toLowerCase().email('Invalid email address'),
@@ -21,7 +23,9 @@ export const registerSchema = createUserSchema.omit({ role: true }).extend({
 });
 
 export const refreshSchema = z.object({
-  refreshToken: z.string().min(1, 'Refresh token is required'),
+  // Optional in the body — a browser client relies on the httpOnly cookie
+  // instead; only non-cookie clients (Swagger/Postman/mobile) need this field.
+  refreshToken: z.string().min(1).optional(),
 });
 
 export const logoutSchema = z.object({
@@ -44,6 +48,25 @@ export const mfaVerifyLoginSchema = z.object({
   code: z.string().min(6, 'Code is required').max(16),
 });
 
+export const mfaResendSchema = z.object({
+  mfaToken: z.string().min(1, 'MFA challenge token is required'),
+});
+
 export const mfaDisableSchema = z.object({
   currentPassword: z.string().min(1, 'Current password is required'),
+});
+
+export const forgotPasswordSchema = z.object({
+  email: z.string().trim().toLowerCase().email('Invalid email address'),
+  // Only enforced server-side when CAPTCHA_PROVIDER is configured (see utils/captcha.ts).
+  captchaToken: z.string().optional(),
+});
+
+export const validateResetTokenQuerySchema = z.object({
+  token: z.string().min(1, 'Reset token is required'),
+});
+
+export const resetPasswordSchema = z.object({
+  token: z.string().min(1, 'Reset token is required'),
+  newPassword: passwordSchema,
 });
