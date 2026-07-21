@@ -3,8 +3,7 @@ import type { CheckoutSummaryDto, OrderAddress } from "./types";
 
 export interface PlaceOrderInput {
   couponCode?: string;
-  /** COD is the only supported method today. */
-  paymentMethod?: "COD";
+  paymentMethod?: "COD" | "ESEWA";
   shippingAddress: OrderAddress;
   billingAddress?: OrderAddress;
   customerNote?: string;

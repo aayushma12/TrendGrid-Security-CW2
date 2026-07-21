@@ -55,9 +55,10 @@ export default function CheckoutAdmin() {
             <div className="adm-form-row">
               <div className="adm-field">
                 <label>Currency</label>
-                <select className="adm-select" value={s.currency} onChange={(e) => patch({ currency: e.target.value, currencySymbol: e.target.value === "USD" ? "$" : e.target.value === "EUR" ? "€" : e.target.value === "GBP" ? "£" : "$" })}>
-                  <option>USD</option><option>EUR</option><option>GBP</option><option>NPR</option>
+                <select className="adm-select" value={s.currency} disabled>
+                  <option>NPR</option>
                 </select>
+                <span className="adm-hint">This store trades in Nepalese Rupees only.</span>
               </div>
               <div className="adm-field">
                 <label>Tax rate (%)</label>

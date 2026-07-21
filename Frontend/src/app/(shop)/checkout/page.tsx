@@ -11,6 +11,7 @@ import { useStore } from "@/lib/store-context";
 import { useAuth, formatAuthError } from "@/lib/auth-context";
 import { ApiError } from "@/lib/api/client";
 import { placeOrder, previewCheckout } from "@/lib/api/checkout";
+import { initiateEsewaPayment, redirectToEsewa } from "@/lib/api/payment";
 import { listMyOrders } from "@/lib/api/orders";
 import { formatPrice } from "@/lib/shop-data";
 import type { CheckoutSummaryDto, OrderAddress } from "@/lib/api/types";
@@ -42,6 +43,7 @@ export default function CheckoutPage() {
   const [previewLoading, setPreviewLoading] = useState(true);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [placing, setPlacing] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<"COD" | "ESEWA">("COD");
 
   const loadPreview = useCallback(async (code?: string) => {
     if (!isAuthenticated || lines.length === 0) return;
@@ -128,17 +130,24 @@ export default function CheckoutPage() {
     try {
       const res = await placeOrder({
         couponCode,
-        paymentMethod: "COD",
+        paymentMethod,
         shippingAddress: shipping,
         billingAddress: sameAsShipping ? undefined : billing,
         customerNote: customerNote.trim() || undefined,
       });
       await refreshCart();
+
+      if (paymentMethod === "ESEWA") {
+        showToast("Redirecting to eSewa…");
+        const esewa = await initiateEsewaPayment(res.data.orderId);
+        redirectToEsewa(esewa.data);
+        return; // browser is navigating away to eSewa
+      }
+
       showToast(`Order ${res.data.orderNumber} placed — thank you!`, 5000);
       router.push(`/orders/${res.data.orderId}`);
     } catch (err) {
       showToast(err instanceof ApiError ? err.message : formatAuthError(err));
-    } finally {
       setPlacing(false);
     }
   }
@@ -155,7 +164,7 @@ export default function CheckoutPage() {
     discountAmount: 0, couponCode: null, couponDiscount: 0,
     shippingCharge: 0, taxAmount: 0,
     grandTotal: lines.reduce((s, l) => s + l.price * l.qty, 0),
-    currency: "USD", items: [],
+    currency: "NPR", items: [],
   };
 
   return (
@@ -286,12 +295,18 @@ export default function CheckoutPage() {
 
                 <div className="nx-form-card">
                   <h3>Payment Method</h3>
-                  <label className="nx-pay-opt is-active">
-                    <input type="radio" name="pay" checked readOnly />
+                  <label className={`nx-pay-opt${paymentMethod === "ESEWA" ? " is-active" : ""}`}>
+                    <input type="radio" name="pay" checked={paymentMethod === "ESEWA"} onChange={() => setPaymentMethod("ESEWA")} />
+                    🟢 eSewa — pay securely online
+                  </label>
+                  <label className={`nx-pay-opt${paymentMethod === "COD" ? " is-active" : ""}`}>
+                    <input type="radio" name="pay" checked={paymentMethod === "COD"} onChange={() => setPaymentMethod("COD")} />
                     📦 Cash on Delivery — pay when it arrives
                   </label>
                   <p className="nx-free-ship" style={{ marginTop: 10 }}>
-                    Pay in cash when your order is delivered. Online payment options are coming soon.
+                    {paymentMethod === "ESEWA"
+                      ? "You'll be redirected to eSewa to complete your payment securely."
+                      : "Pay in cash when your order is delivered."}
                   </p>
                 </div>
 
@@ -381,7 +396,7 @@ export default function CheckoutPage() {
                 )}
 
                 <button type="submit" className="nx-btn nx-btn-accent" disabled={placing || previewLoading || Boolean(previewError)}>
-                  {placing ? "Placing order…" : "Place Order"}
+                  {placing ? (paymentMethod === "ESEWA" ? "Redirecting to eSewa…" : "Placing order…") : "Place Order"}
                 </button>
               </aside>
             </form>
