@@ -1,0 +1,11 @@
+{
+  // Same reasoning as tests/tsconfig.json — gives VS Code's TS server a
+  // nearer project for files under prisma/ (seed scripts etc.), which the
+  // root tsconfig.json's src-only include doesn't cover.
+  "extends": "../tsconfig.test.json",
+  "compilerOptions": {
+    "rootDir": ".."
+  },
+  "include": ["**/*.ts", "../src/**/*.ts"],
+  "exclude": ["../node_modules", "../dist"]
+}
