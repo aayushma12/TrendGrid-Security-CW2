@@ -8,11 +8,14 @@
  *  4. The home page resolves ordered sections with data.
  *  5. Token -> CSS variable conversion produces a complete map.
  */
+import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
 import { getActiveThemeTokens, getPage, getStoreProducts } from "../src/lib/store-data";
 import { themeToCssVars } from "../src/lib/design-tokens";
 
-const prisma = new PrismaClient();
+const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
+const prisma = new PrismaClient({ adapter });
 let failures = 0;
 
 function check(name: string, ok: boolean, detail = "") {
