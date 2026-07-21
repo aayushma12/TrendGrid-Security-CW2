@@ -131,6 +131,31 @@ All image storage goes through Cloudinary. Configure in `.env`; use `uploader('s
 
 Full list in `.env.example`. Boot fails with a printed list if any required value is missing or malformed.
 
+## Security
+
+See [SECURITY.md](./SECURITY.md) for the full reference (auth, MFA — TOTP and email OTP, rate limiting, CSRF, encryption at rest, RBAC/IDOR, audit logging and alerting) and [SECURITY-HARDENING-SUMMARY.md](./SECURITY-HARDENING-SUMMARY.md) for the narrative audit history.
+
+## Testing
+
+```bash
+npm test              # Jest + Supertest — 4 suites, 33 tests
+```
+
+Tests run against `DATABASE_URL` from `.env.test` (a separate database from dev — don't point it at data you care about; the suite creates and tears down its own rows but a schema mismatch or wrong target will cause confusing failures).
+
+## Docker
+
+```bash
+docker build -t ndh-trendgrid-api .
+docker run --env-file .env -p 5000:5000 ndh-trendgrid-api
+```
+
+Multi-stage build (`deps` → `build` → `runtime`) on `node:20-alpine`; the runtime stage re-runs `prisma generate` against production-only `node_modules` so the shipped query-engine binary matches what's actually installed, runs as a non-root user, and exposes a `/api/v1/health`-based `HEALTHCHECK`. `docker-compose.yml` brings up the full stack (Postgres + this API + the sibling `Frontend` — see the file's header comment for the expected side-by-side directory layout).
+
+## CI/CD
+
+`.github/workflows/ci.yml` runs on every push/PR: install → `prisma generate` → lint → typecheck+build → `prisma db push` against a throwaway Postgres service → test → `npm audit` (blocking on critical, informational on high) → Docker build verification → secret scanning (`gitleaks`). `.github/workflows/codeql.yml` runs CodeQL analysis (javascript-typescript) on push/PR plus a weekly scheduled sweep. `.github/dependabot.yml` keeps npm and GitHub Actions dependencies patched on a weekly cadence.
+
 ## Repository
 
 [github.com/projectbyndh/NDH.Trendgrid.Api](https://github.com/projectbyndh/NDH.Trendgrid.Api)
