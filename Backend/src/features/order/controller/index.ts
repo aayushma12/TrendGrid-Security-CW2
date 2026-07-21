@@ -1,8 +1,7 @@
-import { Request, Response } from 'express';
+import type { Request, Response } from 'express';
 
 import { noContent, paginated, success } from '../../../utils/response';
 import { parseQueryOptions } from '../../../utils/queryOptions';
-
 import * as orderService from '../service';
 import { buildInvoicePdf } from '../service/invoice';
 import { ORDER_FILTER_FIELDS, ORDER_MESSAGES, ORDER_SORT_FIELDS } from '../constants';
@@ -10,6 +9,11 @@ import { ORDER_FILTER_FIELDS, ORDER_MESSAGES, ORDER_SORT_FIELDS } from '../const
 export const getOrderController = async (req: Request, res: Response): Promise<void> => {
   const order = await orderService.getOrderById(req.params.id, req.user);
   success(res, order, ORDER_MESSAGES.RETRIEVED);
+};
+
+export const getOrderStatsController = async (_req: Request, res: Response): Promise<void> => {
+  const stats = await orderService.getOrderStats();
+  success(res, stats, ORDER_MESSAGES.STATS_RETRIEVED);
 };
 
 export const getOrdersController = async (req: Request, res: Response): Promise<void> => {
@@ -89,5 +93,7 @@ export const getOrderInvoiceController = async (req: Request, res: Response): Pr
   const pdf = await buildInvoicePdf(order);
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `attachment; filename="invoice-${order.invoiceNumber}.pdf"`);
+  // Binary PDF stream, not a JSON API response — success()'s envelope doesn't apply.
+  // eslint-disable-next-line no-restricted-syntax
   res.send(pdf);
 };

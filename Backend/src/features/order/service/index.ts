@@ -9,28 +9,29 @@
  *   • Every transition appends an immutable OrderStatusHistory row —
  *     history is never overwritten, only appended to.
  */
-import { PaginationMeta, QueryOptions } from '../../../types';
+import type { PaginationMeta, QueryOptions } from '../../../types';
 import { BadRequestError, ForbiddenError, NotFoundError } from '../../../utils/errors';
 import { buildPaginationMeta } from '../../../utils/queryOptions';
 import { logger } from '../../../utils/logger';
 import { encryptJson } from '../../../utils/crypto';
-
 import * as orderRepo from '../repository';
 import * as couponRepo from '../../coupon/repository';
-import {
-  CancelOrderDto, OrderResponseDto, RefundOrderDto, UpdateOrderDto, UpdateOrderStatusDto,
-  UpdatePaymentStatusDto, toOrderResponseDto,
+import type {
+  CancelOrderDto, OrderResponseDto, OrderStatsResponseDto, RefundOrderDto, UpdateOrderDto, UpdateOrderStatusDto,
+  UpdatePaymentStatusDto} from '../dto';
+import { toOrderResponseDto,
 } from '../dto';
+import type {
+  OrderStatusValue,
+  PaymentStatusValue} from '../constants';
 import {
   CANCELLABLE_FROM,
   ESTIMATED_DELIVERY_DAYS,
   ORDER_MESSAGES,
   ORDER_TRANSITIONS,
-  OrderStatusValue,
-  PaymentStatusValue,
   STATUS_TIMESTAMP_FIELD,
 } from '../constants';
-import { Order } from '../types';
+import type { Order } from '../types';
 
 export type ReqUser = { id: string; role: string };
 
@@ -319,3 +320,22 @@ export const restoreOrder = async (id: string): Promise<OrderResponseDto> => {
 export const hasDeliveredOrderForProduct = async (
   userId: string, productId: string,
 ): Promise<boolean> => orderRepo.existsDeliveredWithProduct(userId, productId);
+
+// -------- Admin dashboard stats --------
+
+export const getOrderStats = async (): Promise<OrderStatsResponseDto> => {
+  const raw = await orderRepo.getStats();
+  const countFor = (status: string): number => raw.statusCounts.find((s) => s.status === status)?.count ?? 0;
+
+  return {
+    totalOrders: raw.totalOrders,
+    pendingOrders: countFor('PENDING'),
+    confirmedOrders: countFor('CONFIRMED'),
+    deliveredOrders: countFor('DELIVERED'),
+    cancelledOrders: countFor('CANCELLED'),
+    totalRevenue: raw.totalRevenue,
+    monthlyRevenue: raw.monthlyRevenue,
+    todayOrders: raw.todayOrders,
+    bestSellers: raw.bestSellers,
+  };
+};

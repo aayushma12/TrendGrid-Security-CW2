@@ -5,7 +5,7 @@
  */
 import PDFDocument from 'pdfkit';
 
-import { OrderResponseDto } from '../dto';
+import type { OrderResponseDto } from '../dto';
 
 const money = (amount: number, currency: string): string => `${currency} ${amount.toFixed(2)}`;
 

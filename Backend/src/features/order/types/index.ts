@@ -1,4 +1,4 @@
-import { OrderStatusValue, PaymentStatusValue } from '../constants';
+import type { OrderStatusValue, PaymentStatusValue } from '../constants';
 
 export interface OrderAddress {
   fullName: string;
@@ -44,7 +44,7 @@ export interface Order {
   userId: string;
   status: OrderStatusValue;
   paymentStatus: PaymentStatusValue;
-  paymentMethod: 'COD';
+  paymentMethod: 'COD' | 'ESEWA';
   paidAt?: Date;
 
   subtotal: number;

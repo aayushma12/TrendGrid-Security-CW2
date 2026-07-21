@@ -1,5 +1,5 @@
-import { OrderStatusValue, PaymentStatusValue } from '../constants';
-import { Order, OrderAddress, OrderItem, OrderStatusHistoryEntry } from '../types';
+import type { OrderStatusValue, PaymentStatusValue } from '../constants';
+import type { Order, OrderAddress, OrderItem, OrderStatusHistoryEntry } from '../types';
 
 export interface UpdateOrderStatusDto {
   status: OrderStatusValue;
@@ -64,7 +64,7 @@ export interface OrderResponseDto {
   userId: string;
   status: OrderStatusValue;
   paymentStatus: PaymentStatusValue;
-  paymentMethod: 'COD';
+  paymentMethod: 'COD' | 'ESEWA';
   paidAt: string | null;
 
   subtotal: number;
@@ -188,3 +188,15 @@ export const toOrderResponseDto = (o: Order): OrderResponseDto => ({
   createdAt: o.createdAt.toISOString(),
   updatedAt: o.updatedAt.toISOString(),
 });
+
+export interface OrderStatsResponseDto {
+  totalOrders: number;
+  pendingOrders: number;
+  confirmedOrders: number;
+  deliveredOrders: number;
+  cancelledOrders: number;
+  totalRevenue: number;
+  monthlyRevenue: number;
+  todayOrders: number;
+  bestSellers: { productId: string; productName: string; imageUrl: string | null; quantitySold: number; revenue: number }[];
+}

@@ -1,7 +1,6 @@
 import { Router } from 'express';
 
 import { defineRoutes } from '../../../utils/defineRoute';
-
 import {
   cancelOrderController,
   deleteOrderController,
@@ -9,6 +8,7 @@ import {
   getOrderController,
   getOrderInvoiceController,
   getOrdersController,
+  getOrderStatsController,
   refundOrderController,
   restoreOrderController,
   trackOrderController,
@@ -32,6 +32,8 @@ const router = Router();
 defineRoutes(router, [
   // Admin: list all orders and full management
   { method: 'get',    path: '/',           auth: 'ADMIN', schema: { query: listOrdersQuerySchema },                            handler: getOrdersController },
+  // Fixed path — must stay registered before GET '/:id' below or Express treats "stats" as an :id.
+  { method: 'get',    path: '/stats',      auth: 'ADMIN', schema: {},                                                          handler: getOrderStatsController },
   { method: 'put',    path: '/:id',        auth: 'ADMIN', schema: { params: orderIdParamsSchema, body: updateOrderSchema },    handler: updateOrderController },
   { method: 'delete', path: '/:id',        auth: 'ADMIN', schema: { params: orderIdParamsSchema },                            handler: deleteOrderController },
   { method: 'patch',  path: '/:id/status', auth: 'ADMIN', schema: { params: orderIdParamsSchema, body: updateOrderStatusSchema }, handler: updateOrderStatusController },

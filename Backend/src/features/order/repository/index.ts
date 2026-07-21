@@ -1,10 +1,10 @@
 import { Prisma } from '@prisma/client';
 
 import { prisma } from '../../../config/prisma';
-import { QueryOptions } from '../../../types';
+import type { QueryOptions } from '../../../types';
 import { decryptJson } from '../../../utils/crypto';
-import { Order, OrderAddress, OrderItem, OrderStatusHistoryEntry } from '../types';
-import { OrderStatusValue, PaymentStatusValue } from '../constants';
+import type { Order, OrderAddress, OrderItem, OrderStatusHistoryEntry } from '../types';
+import type { OrderStatusValue, PaymentStatusValue } from '../constants';
 
 const ORDER_INCLUDE = {
   items: { orderBy: { createdAt: 'asc' } },
@@ -49,7 +49,7 @@ const toOrder = (r: PrismaOrderWithIncludes): Order => ({
   userId: r.userId,
   status: r.status as OrderStatusValue,
   paymentStatus: r.paymentStatus as PaymentStatusValue,
-  paymentMethod: r.paymentMethod as 'COD',
+  paymentMethod: r.paymentMethod as 'COD' | 'ESEWA',
   paidAt: r.paidAt ?? undefined,
 
   subtotal: Number(r.subtotal),
@@ -271,3 +271,58 @@ export const restoreStockForOrder = async (
 
 export const runInTx = async <T>(fn: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> =>
   prisma.$transaction(fn);
+
+export interface OrderStatsRaw {
+  totalOrders: number;
+  statusCounts: { status: string; count: number }[];
+  totalRevenue: number;
+  monthlyRevenue: number;
+  todayOrders: number;
+  bestSellers: { productId: string; productName: string; imageUrl: string | null; quantitySold: number; revenue: number }[];
+}
+
+/** Dashboard aggregate — one round trip per metric, run in parallel. */
+export const getStats = async (): Promise<OrderStatsRaw> => {
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  const [totalOrders, statusGroups, revenueAgg, monthlyRevenueAgg, todayOrders, bestSellerGroups] = await Promise.all([
+    prisma.order.count({ where: { isDeleted: false } }),
+    prisma.order.groupBy({ by: ['status'], where: { isDeleted: false }, _count: { _all: true } }),
+    prisma.order.aggregate({ where: { isDeleted: false, paymentStatus: 'PAID' }, _sum: { grandTotal: true } }),
+    prisma.order.aggregate({
+      where: { isDeleted: false, paymentStatus: 'PAID', placedAt: { gte: startOfMonth } },
+      _sum: { grandTotal: true },
+    }),
+    prisma.order.count({ where: { isDeleted: false, placedAt: { gte: startOfToday } } }),
+    prisma.orderItem.groupBy({
+      by: ['productId'],
+      where: { order: { isDeleted: false, status: { not: 'CANCELLED' } } },
+      _sum: { quantity: true, lineTotal: true },
+      orderBy: { _sum: { quantity: 'desc' } },
+      take: 5,
+    }),
+  ]);
+
+  const productIds = bestSellerGroups.map((g) => g.productId);
+  const products = productIds.length
+    ? await prisma.product.findMany({ where: { id: { in: productIds } }, select: { id: true, name: true, imageUrl: true } })
+    : [];
+  const productById = new Map(products.map((p) => [p.id, p]));
+
+  return {
+    totalOrders,
+    statusCounts: statusGroups.map((g) => ({ status: g.status, count: g._count._all })),
+    totalRevenue: decimalToNumber(revenueAgg._sum.grandTotal),
+    monthlyRevenue: decimalToNumber(monthlyRevenueAgg._sum.grandTotal),
+    todayOrders,
+    bestSellers: bestSellerGroups.map((g) => ({
+      productId: g.productId,
+      productName: productById.get(g.productId)?.name ?? '(deleted product)',
+      imageUrl: productById.get(g.productId)?.imageUrl ?? null,
+      quantitySold: g._sum.quantity ?? 0,
+      revenue: decimalToNumber(g._sum.lineTotal),
+    })),
+  };
+};

@@ -76,6 +76,7 @@ export const ORDER_MESSAGES = {
   DELETED: 'Order deleted successfully.',
   RESTORED: 'Order restored successfully.',
   TRACKED: 'Order tracking information retrieved successfully.',
+  STATS_RETRIEVED: 'Order statistics retrieved successfully.',
 
   NOT_FOUND: 'Order not found.',
   TRACKING_NOT_FOUND: 'No order found for that tracking number or order number.',
