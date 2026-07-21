@@ -1,9 +1,9 @@
 import { Prisma } from '@prisma/client';
 
 import { prisma } from '../../../config/prisma';
-import { QueryOptions } from '../../../types';
-import { Review, ReviewImage, ReviewSummary } from '../types';
-import { ReviewStatusValue } from '../constants';
+import type { QueryOptions } from '../../../types';
+import type { Review, ReviewImage, ReviewSummary } from '../types';
+import type { ReviewStatusValue } from '../constants';
 
 const REVIEW_INCLUDE = {
   images: { orderBy: { position: 'asc' } },
@@ -182,5 +182,71 @@ export const computeSummary = async (productId: string): Promise<ReviewSummary> 
     averageRating: total ? Math.round((sum / total) * 100) / 100 : 0,
     totalReviews: total,
     breakdown,
+  };
+};
+
+// ---------- admin analytics ----------
+
+export interface ReviewAnalyticsRaw {
+  totalReviews: number;
+  pendingCount: number;
+  approvedCount: number;
+  rejectedCount: number;
+  averageRating: number;
+  recentReviews: (Review & { productName: string })[];
+  topRated: { productId: string; productName: string; averageRating: number; reviewCount: number }[];
+  lowestRated: { productId: string; productName: string; averageRating: number; reviewCount: number }[];
+}
+
+/** Minimum review count a product needs before it's eligible for the
+ *  highest/lowest-rated lists — a single 5-star review isn't a meaningful signal. */
+const MIN_REVIEWS_FOR_RANKING = 3;
+
+export const getAnalytics = async (): Promise<ReviewAnalyticsRaw> => {
+  const [totalReviews, pendingCount, approvedCount, rejectedCount, ratingAgg, recentReviews, productGroups] = await Promise.all([
+    prisma.review.count({ where: { status: { not: 'DELETED' } } }),
+    prisma.review.count({ where: { status: 'PENDING' } }),
+    prisma.review.count({ where: { status: 'APPROVED' } }),
+    prisma.review.count({ where: { status: 'REJECTED' } }),
+    prisma.review.aggregate({ where: { status: 'APPROVED' }, _avg: { rating: true } }),
+    prisma.review.findMany({
+      where: { status: { not: 'DELETED' } },
+      include: REVIEW_INCLUDE,
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+    }),
+    prisma.review.groupBy({
+      by: ['productId'],
+      where: { status: 'APPROVED' },
+      _avg: { rating: true },
+      _count: { _all: true },
+      having: { productId: { _count: { gte: MIN_REVIEWS_FOR_RANKING } } },
+    }),
+  ]);
+
+  const productIds = Array.from(new Set([...productGroups.map((g) => g.productId), ...recentReviews.map((r) => r.productId)]));
+  const products = productIds.length
+    ? await prisma.product.findMany({ where: { id: { in: productIds } }, select: { id: true, name: true } })
+    : [];
+  const nameById = new Map(products.map((p) => [p.id, p.name]));
+
+  const ranked = productGroups
+    .map((g) => ({
+      productId: g.productId,
+      productName: nameById.get(g.productId) ?? '(deleted product)',
+      averageRating: Math.round((g._avg.rating ?? 0) * 100) / 100,
+      reviewCount: g._count._all,
+    }))
+    .sort((a, b) => b.averageRating - a.averageRating);
+
+  return {
+    totalReviews,
+    pendingCount,
+    approvedCount,
+    rejectedCount,
+    averageRating: Math.round((ratingAgg._avg.rating ?? 0) * 100) / 100,
+    recentReviews: recentReviews.map((r) => ({ ...toReview(r), productName: nameById.get(r.productId) ?? '(deleted product)' })),
+    topRated: ranked.slice(0, 5),
+    lowestRated: ranked.slice(-5).reverse(),
   };
 };

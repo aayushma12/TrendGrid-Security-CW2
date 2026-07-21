@@ -1,4 +1,4 @@
-import { ReviewStatusValue } from '../constants';
+import type { ReviewStatusValue } from '../constants';
 
 export interface ReviewImage {
   id: string;

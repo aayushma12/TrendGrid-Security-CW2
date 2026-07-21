@@ -26,6 +26,7 @@ export const REVIEW_MESSAGES = {
   HIDDEN: 'Review hidden.',
   RESTORED: 'Review restored.',
   REPLIED: 'Reply saved.',
+  ANALYTICS_RETRIEVED: 'Review analytics retrieved successfully.',
 
   NOT_FOUND: 'Review not found.',
   NOT_ELIGIBLE: 'You can only review products from delivered orders.',

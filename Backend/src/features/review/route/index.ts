@@ -2,12 +2,12 @@ import { Router } from 'express';
 
 import { defineRoutes } from '../../../utils/defineRoute';
 import { memoryUploader } from '../../../config/cloudinary';
-
 import {
   addReviewImagesController,
   approveReviewController,
   createReviewController,
   deleteReviewController,
+  getAnalyticsController,
   getReviewController,
   getReviewsController,
   getSummaryController,
@@ -34,8 +34,10 @@ const router = Router();
 defineRoutes(router, [
   // ── Public reads ────────────────────────────────────────────────────────
   { method: 'get', path: '/',      auth: 'public', schema: { query: listReviewsQuerySchema }, handler: getReviewsController },
-  { method: 'get', path: '/:id',   auth: 'public', schema: { params: reviewIdParamsSchema },  handler: getReviewController },
   { method: 'get', path: '/summary/:productId', auth: 'public', schema: { params: productIdParamsSchema }, handler: getSummaryController },
+  // Fixed path — must stay registered before GET '/:id' below or Express treats "analytics" as an :id.
+  { method: 'get', path: '/analytics', auth: 'ADMIN', schema: {}, handler: getAnalyticsController },
+  { method: 'get', path: '/:id',   auth: 'public', schema: { params: reviewIdParamsSchema },  handler: getReviewController },
 
   // ── Authenticated: customer creates / edits / deletes their own review ──
   { method: 'post',   path: '/',    auth: 'authenticated', schema: { body: createReviewSchema },                           handler: createReviewController },

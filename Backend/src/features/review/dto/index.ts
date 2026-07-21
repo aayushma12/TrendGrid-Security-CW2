@@ -1,5 +1,5 @@
-import { ReviewStatusValue } from '../constants';
-import { Review, ReviewImage, ReviewSummary } from '../types';
+import type { ReviewStatusValue } from '../constants';
+import type { Review, ReviewImage, ReviewSummary } from '../types';
 
 export interface CreateReviewDto {
   productId: string;
@@ -81,3 +81,21 @@ export const toReviewSummaryResponseDto = (s: ReviewSummary): ReviewSummaryRespo
     '5': s.breakdown[5],
   },
 });
+
+export interface RatedProductDto {
+  productId: string;
+  productName: string;
+  averageRating: number;
+  reviewCount: number;
+}
+
+export interface ReviewAnalyticsResponseDto {
+  totalReviews: number;
+  pendingCount: number;
+  approvedCount: number;
+  rejectedCount: number;
+  averageRating: number;
+  recentReviews: (ReviewResponseDto & { productName: string })[];
+  topRated: RatedProductDto[];
+  lowestRated: RatedProductDto[];
+}

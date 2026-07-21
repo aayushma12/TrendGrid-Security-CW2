@@ -9,20 +9,21 @@
  *   • Admin moderation: approve / reject / hide / restore / reply / delete
  *   • Summary (average + breakdown) only counts APPROVED reviews
  */
-import { PaginationMeta, QueryOptions } from '../../../types';
+import type { PaginationMeta, QueryOptions } from '../../../types';
 import { BadRequestError, DuplicateError, ForbiddenError, NotFoundError } from '../../../utils/errors';
 import { buildPaginationMeta } from '../../../utils/queryOptions';
 import { logger } from '../../../utils/logger';
 import { deleteImage, uploadImage } from '../../../services/imageService';
-
 import * as reviewRepo from '../repository';
 import { hasDeliveredOrderForProduct } from '../../order/service';
-import {
-  AdminReplyDto, CreateReviewDto, ReviewResponseDto, ReviewSummaryResponseDto,
-  UpdateReviewDto, toReviewResponseDto, toReviewSummaryResponseDto,
+import type {
+  AdminReplyDto, CreateReviewDto, ReviewAnalyticsResponseDto, ReviewResponseDto, ReviewSummaryResponseDto,
+  UpdateReviewDto} from '../dto';
+import { toReviewResponseDto, toReviewSummaryResponseDto,
 } from '../dto';
+import type { ReviewStatusValue} from '../constants';
 import {
-  RATING_MAX, RATING_MIN, REVIEW_IMAGE_SUBFOLDER, REVIEW_MESSAGES, ReviewStatusValue,
+  RATING_MAX, RATING_MIN, REVIEW_IMAGE_SUBFOLDER, REVIEW_MESSAGES
 } from '../constants';
 
 export type ReqUser = { id: string; role: string };
@@ -190,4 +191,20 @@ export const getSummary = async (productId: string): Promise<ReviewSummaryRespon
   await requireEligibleProduct(productId);
   const s = await reviewRepo.computeSummary(productId);
   return toReviewSummaryResponseDto(s);
+};
+
+// -------- admin analytics --------
+
+export const getAnalytics = async (): Promise<ReviewAnalyticsResponseDto> => {
+  const raw = await reviewRepo.getAnalytics();
+  return {
+    totalReviews: raw.totalReviews,
+    pendingCount: raw.pendingCount,
+    approvedCount: raw.approvedCount,
+    rejectedCount: raw.rejectedCount,
+    averageRating: raw.averageRating,
+    recentReviews: raw.recentReviews.map((r) => ({ ...toReviewResponseDto(r), productName: r.productName })),
+    topRated: raw.topRated,
+    lowestRated: raw.lowestRated,
+  };
 };

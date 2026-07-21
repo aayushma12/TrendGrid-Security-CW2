@@ -1,9 +1,8 @@
-import { Request, Response } from 'express';
+import type { Request, Response } from 'express';
 
 import { created, noContent, paginated, success } from '../../../utils/response';
 import { parseQueryOptions } from '../../../utils/queryOptions';
 import { BadRequestError } from '../../../utils/errors';
-
 import * as reviewService from '../service';
 import { REVIEW_FILTER_FIELDS, REVIEW_MESSAGES, REVIEW_SORT_FIELDS } from '../constants';
 
@@ -82,4 +81,9 @@ export const replyReviewController = async (req: Request, res: Response): Promis
 export const getSummaryController = async (req: Request, res: Response): Promise<void> => {
   const s = await reviewService.getSummary(req.params.productId);
   success(res, s, REVIEW_MESSAGES.SUMMARY);
+};
+
+export const getAnalyticsController = async (_req: Request, res: Response): Promise<void> => {
+  const analytics = await reviewService.getAnalytics();
+  success(res, analytics, REVIEW_MESSAGES.ANALYTICS_RETRIEVED);
 };
