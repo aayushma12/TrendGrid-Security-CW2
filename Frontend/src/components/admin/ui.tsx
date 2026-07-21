@@ -8,12 +8,13 @@ import type {
   FulfillmentStatus,
   Status,
   ReviewStatus,
+  GiftCardStatus,
 } from "@/lib/admin-data";
 
 export { fashionSrc };
 
-export function money(n: number, symbol = "$"): string {
-  return `${symbol}${n.toFixed(2)}`;
+export function money(n: number, symbol = "Rs."): string {
+  return symbol === "Rs." ? `Rs. ${n.toLocaleString("en-IN", { maximumFractionDigits: 0 })}` : `${symbol}${n.toFixed(2)}`;
 }
 
 /* --- badge colour maps --- */
@@ -48,6 +49,12 @@ const REVIEW_TONE: Record<ReviewStatus, string> = {
   pending: "amber",
   rejected: "red",
 };
+const GIFTCARD_TONE: Record<GiftCardStatus, string> = {
+  active: "green",
+  redeemed: "gray",
+  expired: "gray",
+  disabled: "red",
+};
 
 export function Badge({ tone, children }: { tone: string; children: React.ReactNode }) {
   return <span className={`adm-badge ${tone}`}>{children}</span>;
@@ -67,6 +74,9 @@ export const StatusBadge = ({ status }: { status: Status }) => (
 );
 export const ReviewBadge = ({ status }: { status: ReviewStatus }) => (
   <Badge tone={REVIEW_TONE[status]}>{status}</Badge>
+);
+export const GiftCardBadge = ({ status }: { status: GiftCardStatus }) => (
+  <Badge tone={GIFTCARD_TONE[status]}>{status}</Badge>
 );
 
 /* --- toast --- */

@@ -121,3 +121,20 @@ export async function deleteOrder(id: string) {
 export async function restoreOrder(id: string) {
   return apiRequest<OrderDto>(`/orders/${id}/restore`, { method: "POST" });
 }
+
+export interface OrderStats {
+  totalOrders: number;
+  pendingOrders: number;
+  confirmedOrders: number;
+  deliveredOrders: number;
+  cancelledOrders: number;
+  totalRevenue: number;
+  monthlyRevenue: number;
+  todayOrders: number;
+  bestSellers: { productId: string; productName: string; imageUrl: string | null; quantitySold: number; revenue: number }[];
+}
+
+/** Admin-only dashboard aggregate — GET /orders/stats. */
+export async function getOrderStats() {
+  return apiRequest<OrderStats>("/orders/stats");
+}

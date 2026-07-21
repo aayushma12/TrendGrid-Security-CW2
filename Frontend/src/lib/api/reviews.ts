@@ -43,7 +43,7 @@ export async function getReview(id: string) {
 
 /** Public: average rating + star breakdown for a product (approved reviews only). */
 export async function getReviewSummary(productId: string) {
-  return apiRequest<ReviewSummaryDto>(`/reviews/summary/${productId}`, { auth: false });
+  return apiRequest<ReviewSummaryDto>(`/reviews/summary/${productId}`);
 }
 
 /** Customer: create a review for a product they have a delivered order for. */
@@ -80,4 +80,27 @@ export async function replyToReview(id: string, reply: string) {
     method: "POST",
     body: JSON.stringify({ reply }),
   });
+}
+
+export interface RatedProduct {
+  productId: string;
+  productName: string;
+  averageRating: number;
+  reviewCount: number;
+}
+
+export interface ReviewAnalytics {
+  totalReviews: number;
+  pendingCount: number;
+  approvedCount: number;
+  rejectedCount: number;
+  averageRating: number;
+  recentReviews: (ReviewDto & { productName: string })[];
+  topRated: RatedProduct[];
+  lowestRated: RatedProduct[];
+}
+
+/** Admin-only dashboard aggregate — GET /reviews/analytics. */
+export async function getReviewAnalytics() {
+  return apiRequest<ReviewAnalytics>("/reviews/analytics");
 }

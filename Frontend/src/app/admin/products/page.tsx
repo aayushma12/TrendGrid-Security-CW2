@@ -1,19 +1,25 @@
 "use client";
 
 import Image from "next/image";
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
+  bulkDeleteProducts,
+  bulkUpdateProductActive,
   createProduct,
   deleteProduct,
+  getCatalogStats,
+  importProductsCsv,
   listProducts,
   removeProductImage,
   updateProduct,
   updateProductAssignments,
   updateProductFlag,
   uploadProductImage,
+  type CatalogStats,
+  type ImportSummary,
 } from "@/lib/api/products";
-import { listCategories } from "@/lib/api/categories";
+import { listAllCategories } from "@/lib/api/categories";
 import { formatAuthError } from "@/lib/auth-context";
 import { ApiError } from "@/lib/api/client";
 import type { CategoryDto, ProductColor, ProductDto, ProductImageSlot, ProductStatus } from "@/lib/api/types";
@@ -21,6 +27,15 @@ import { Toggle, Toast, useConfirmDialog, useToast, fashionSrc } from "@/compone
 
 const STATUSES: ProductStatus[] = ["DRAFT", "PUBLISHED", "ARCHIVED"];
 const STATUS_TONE: Record<ProductStatus, string> = { DRAFT: "amber", PUBLISHED: "green", ARCHIVED: "gray" };
+const PAGE_SIZE = 20;
+const SORT_OPTIONS: { value: string; label: string }[] = [
+  { value: "createdAt:desc", label: "Newest first" },
+  { value: "createdAt:asc", label: "Oldest first" },
+  { value: "name:asc", label: "Name A–Z" },
+  { value: "name:desc", label: "Name Z–A" },
+  { value: "basePrice:asc", label: "Price: low to high" },
+  { value: "basePrice:desc", label: "Price: high to low" },
+];
 
 const IMAGE_SLOTS: { slot: ProductImageSlot; label: string }[] = [
   { slot: "thumbnail", label: "Thumbnail" },
@@ -144,18 +159,37 @@ function thumbOf(p: ProductDto): string | null {
   return p.images.find((i) => i.slot === "thumbnail")?.url ?? null;
 }
 
+function StatCard({ label, value, tone }: { label: string; value: number | string; tone?: "warn" }) {
+  return (
+    <div className="adm-stat">
+      <div className="adm-stat-label">{label}</div>
+      <div className="adm-stat-value" style={tone === "warn" && Number(value) > 0 ? { color: "#b45309" } : undefined}>
+        {value}
+      </div>
+    </div>
+  );
+}
+
 function ProductsInner() {
   const params = useSearchParams();
   const initialCatName = params.get("category");
 
   const [products, setProducts] = useState<ProductDto[]>([]);
   const [categories, setCategories] = useState<CategoryDto[]>([]);
+  const [stats, setStats] = useState<CatalogStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [catId, setCatId] = useState<string>("All");
   const [query, setQuery] = useState("");
+  const [sort, setSort] = useState(SORT_OPTIONS[0].value);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [editing, setEditing] = useState<Draft | null>(null);
   const [saving, setSaving] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
   const [toast, showToast] = useToast();
   const { confirm, dialog } = useConfirmDialog();
 
@@ -163,18 +197,31 @@ function ProductsInner() {
     setLoading(true);
     setError(null);
     try {
-      const [prodRes, catRes] = await Promise.all([
-        listProducts({ limit: 100 }),
-        listCategories({ limit: 100 }),
+      const [sortBy, sortOrder] = sort.split(":") as ["name" | "basePrice" | "createdAt" | "updatedAt", "asc" | "desc"];
+      const [prodRes, allCats, statsRes] = await Promise.all([
+        listProducts({
+          page,
+          limit: PAGE_SIZE,
+          search: query.trim() || undefined,
+          categoryId: catId !== "All" ? catId : undefined,
+          sortBy,
+          sortOrder,
+        }),
+        listAllCategories(),
+        getCatalogStats().catch(() => null),
       ]);
       setProducts(prodRes.data);
-      setCategories(catRes.data);
+      setTotalPages(prodRes.meta?.totalPages ?? 1);
+      setTotal(prodRes.meta?.total ?? prodRes.data.length);
+      setCategories(allCats);
+      if (statsRes) setStats(statsRes.data);
+      setSelected(new Set());
     } catch (err) {
       setError(formatAuthError(err));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [page, query, catId, sort]);
 
   useEffect(() => {
     void load();
@@ -186,20 +233,24 @@ function ProductsInner() {
     if (match) setCatId(match.id);
   }, [categories, initialCatName]);
 
-  const counts = useMemo(() => {
-    const m: Record<string, number> = { All: products.length };
-    for (const c of categories) m[c.id] = products.filter((p) => p.category?.id === c.id).length;
-    return m;
-  }, [products, categories]);
+  // Any filter/search/sort change should reset back to page 1.
+  useEffect(() => {
+    setPage(1);
+  }, [catId, query, sort]);
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return products.filter(
-      (p) =>
-        (catId === "All" || p.category?.id === catId) &&
-        (!q || p.name.toLowerCase().includes(q) || (p.brand ?? "").toLowerCase().includes(q)),
-    );
-  }, [products, catId, query]);
+  const allSelectedOnPage = products.length > 0 && products.every((p) => selected.has(p.id));
+
+  function toggleSelectAll() {
+    setSelected(allSelectedOnPage ? new Set() : new Set(products.map((p) => p.id)));
+  }
+  function toggleSelectOne(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   async function toggleFeatured(p: ProductDto, v: boolean) {
     const prev = products;
@@ -221,10 +272,42 @@ function ProductsInner() {
       return;
     try {
       await deleteProduct(p.id);
-      setProducts((prev) => prev.filter((x) => x.id !== p.id));
       showToast(`“${p.name}” deleted`);
+      void load();
     } catch (err) {
       showToast(formatAuthError(err));
+    }
+  }
+
+  async function bulkActivate(isActive: boolean) {
+    const ids = Array.from(selected);
+    if (ids.length === 0) return;
+    setBulkBusy(true);
+    try {
+      const res = await bulkUpdateProductActive(ids, isActive);
+      showToast(`${res.data.updated} product${res.data.updated === 1 ? "" : "s"} ${isActive ? "activated" : "deactivated"}`);
+      void load();
+    } catch (err) {
+      showToast(formatAuthError(err));
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
+  async function bulkDelete() {
+    const ids = Array.from(selected);
+    if (ids.length === 0) return;
+    if (!(await confirm({ message: `Delete ${ids.length} selected product${ids.length === 1 ? "" : "s"}? This cannot be undone.`, confirmLabel: "Delete", danger: true })))
+      return;
+    setBulkBusy(true);
+    try {
+      const res = await bulkDeleteProducts(ids);
+      showToast(`${res.data.updated} product${res.data.updated === 1 ? "" : "s"} deleted`);
+      void load();
+    } catch (err) {
+      showToast(formatAuthError(err));
+    } finally {
+      setBulkBusy(false);
     }
   }
 
@@ -261,21 +344,17 @@ function ProductsInner() {
         collections: textToArr(draft.collectionsText),
       };
 
-      let saved: ProductDto;
       if (draft.id) {
         await updateProduct(draft.id, core);
-        const assignRes = await updateProductAssignments(draft.id, assignments);
-        saved = assignRes.data;
-        setProducts((prev) => prev.map((p) => (p.id === draft.id ? saved : p)));
+        await updateProductAssignments(draft.id, assignments);
         showToast(`“${draft.name}” updated`);
       } else {
         const res = await createProduct(core);
-        const assignRes = await updateProductAssignments(res.data.id, assignments);
-        saved = assignRes.data;
-        setProducts((prev) => [saved, ...prev]);
+        await updateProductAssignments(res.data.id, assignments);
         showToast(`“${draft.name}” created`);
       }
       setEditing(null);
+      void load();
     } catch (err) {
       if (err instanceof ApiError && err.errors.length > 0) {
         showToast(err.errors.map((e) => e.message).join(" "));
@@ -318,7 +397,11 @@ function ProductsInner() {
         </div>
         <div className="adm-head-actions">
           <input className="adm-search" placeholder="Search name or brand…" value={query} onChange={(e) => setQuery(e.target.value)} />
+          <select className="adm-select" value={sort} onChange={(e) => setSort(e.target.value)} style={{ width: 170 }}>
+            {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
           <button className="adm-btn" onClick={() => void load()} disabled={loading}>Refresh</button>
+          <button className="adm-btn" onClick={() => setImporting(true)}>Import CSV</button>
           <button
             className="adm-btn adm-btn-primary"
             onClick={() => setEditing({ ...BLANK, categoryId: catId !== "All" ? catId : categories[0]?.id ?? "" })}
@@ -329,16 +412,36 @@ function ProductsInner() {
         </div>
       </div>
 
+      {stats && (
+        <div className="adm-stats">
+          <StatCard label="Total products" value={stats.totalProducts} />
+          <StatCard label="Active" value={stats.activeProducts} />
+          <StatCard label="Inactive" value={stats.inactiveProducts} />
+          <StatCard label="Added (30d)" value={stats.recentlyAdded} />
+          <StatCard label="Low stock variants" value={stats.lowStockVariants} tone="warn" />
+        </div>
+      )}
+
       <div className="adm-pills">
         <button className={`adm-pill${catId === "All" ? " is-active" : ""}`} onClick={() => setCatId("All")}>
-          All <span className="adm-pill-count">{counts.All ?? 0}</span>
+          All
         </button>
         {categories.map((c) => (
           <button key={c.id} className={`adm-pill${catId === c.id ? " is-active" : ""}`} onClick={() => setCatId(c.id)}>
-            {c.name} <span className="adm-pill-count">{counts[c.id] ?? 0}</span>
+            {c.name}
           </button>
         ))}
       </div>
+
+      {selected.size > 0 && (
+        <div className="adm-card" style={{ padding: "10px 16px", display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+          <strong>{selected.size} selected</strong>
+          <button className="adm-btn adm-btn-sm" disabled={bulkBusy} onClick={() => void bulkActivate(true)}>Activate</button>
+          <button className="adm-btn adm-btn-sm" disabled={bulkBusy} onClick={() => void bulkActivate(false)}>Deactivate</button>
+          <button className="adm-btn adm-btn-sm adm-btn-danger" disabled={bulkBusy} onClick={() => void bulkDelete()}>Delete</button>
+          <button className="adm-btn adm-btn-sm" style={{ marginLeft: "auto" }} onClick={() => setSelected(new Set())}>Clear</button>
+        </div>
+      )}
 
       {loading && (
         <div className="adm-card">
@@ -361,14 +464,20 @@ function ProductsInner() {
             <table className="adm-table">
               <thead>
                 <tr>
+                  <th style={{ width: 32 }}>
+                    <input type="checkbox" checked={allSelectedOnPage} onChange={toggleSelectAll} aria-label="Select all on this page" />
+                  </th>
                   <th>Product</th><th>Category</th><th>Price</th><th>Variants</th><th>Status</th><th>Featured</th><th style={{ textAlign: "right" }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((p) => {
+                {products.map((p) => {
                   const thumb = thumbOf(p);
                   return (
                     <tr key={p.id}>
+                      <td>
+                        <input type="checkbox" checked={selected.has(p.id)} onChange={() => toggleSelectOne(p.id)} aria-label={`Select ${p.name}`} />
+                      </td>
                       <td>
                         <div className="adm-cell-flex">
                           <Image
@@ -404,11 +513,18 @@ function ProductsInner() {
                     </tr>
                   );
                 })}
-                {filtered.length === 0 && (
-                  <tr><td colSpan={7}><div className="adm-empty">No products match. Try another category or search.</div></td></tr>
+                {products.length === 0 && (
+                  <tr><td colSpan={8}><div className="adm-empty">No products match. Try another category or search.</div></td></tr>
                 )}
               </tbody>
             </table>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px" }}>
+            <span className="adm-cell-sub">{total} product{total === 1 ? "" : "s"} total · page {page} of {totalPages}</span>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button className="adm-btn adm-btn-sm" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>Previous</button>
+              <button className="adm-btn adm-btn-sm" disabled={page >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>Next</button>
+            </div>
           </div>
         </div>
       )}
@@ -424,9 +540,125 @@ function ProductsInner() {
           onRemoveImage={(slot) => void handleSlotRemove(editing.id, slot)}
         />
       )}
+      {importing && (
+        <ImportModal
+          onClose={() => setImporting(false)}
+          onDone={() => {
+            setImporting(false);
+            void load();
+          }}
+        />
+      )}
       <Toast msg={toast} />
       {dialog}
     </>
+  );
+}
+
+function ImportModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+  const [file, setFile] = useState<File | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [preview, setPreview] = useState<ImportSummary | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function runPreview() {
+    if (!file) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await importProductsCsv(file, true);
+      setPreview(res.data);
+    } catch (err) {
+      setError(formatAuthError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function runImport() {
+    if (!file) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await importProductsCsv(file, false);
+      onDone();
+    } catch (err) {
+      setError(formatAuthError(err));
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="adm-overlay adm-modal-center" onClick={onClose}>
+      <div className="adm-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="adm-modal-head">
+          <h3>Import products from CSV</h3>
+          <button className="adm-close" onClick={onClose} disabled={busy}>✕</button>
+        </div>
+        <div className="adm-modal-body">
+          <p className="adm-hint">
+            Columns: name, description, shortDescription, basePrice, discountPrice, currency, categoryName,
+            brand, sizes, tags, labels, collections. Sizes/tags/labels/collections are comma-separated within
+            their cell (e.g. &quot;S,M,L&quot;). categoryName must match an existing category or subcategory name exactly.
+          </p>
+          <div className="adm-field">
+            <label>CSV file</label>
+            <input
+              className="adm-input"
+              type="file"
+              accept=".csv,text/csv"
+              onChange={(e) => {
+                setFile(e.target.files?.[0] ?? null);
+                setPreview(null);
+              }}
+            />
+          </div>
+
+          {error && (
+            <div role="alert" style={{ background: "#fef2f2", color: "#b91c1c", border: "1px solid #fecaca", borderRadius: 10, padding: "10px 14px", fontSize: 14 }}>
+              {error}
+            </div>
+          )}
+
+          {preview && (
+            <div className="adm-card" style={{ marginTop: 12, padding: 12 }}>
+              <p>
+                <strong>{preview.created}</strong> would be created, <strong>{preview.skipped}</strong> skipped as
+                duplicates, <strong>{preview.errors}</strong> row error{preview.errors === 1 ? "" : "s"}.
+              </p>
+              <div style={{ maxHeight: 220, overflowY: "auto" }}>
+                <table className="adm-table">
+                  <thead><tr><th>Row</th><th>Name</th><th>Status</th><th>Message</th></tr></thead>
+                  <tbody>
+                    {preview.results.map((r) => (
+                      <tr key={r.row}>
+                        <td>{r.row}</td>
+                        <td>{r.name ?? "—"}</td>
+                        <td>
+                          <span className={`adm-badge ${r.status === "created" ? "green" : r.status === "error" ? "red" : "amber"}`}>
+                            {r.status.replace("_", " ")}
+                          </span>
+                        </td>
+                        <td className="adm-cell-sub">{r.message ?? ""}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="adm-modal-foot">
+          <button className="adm-btn" onClick={onClose} disabled={busy}>Cancel</button>
+          <button className="adm-btn" disabled={!file || busy} onClick={() => void runPreview()}>
+            {busy && !preview ? "Checking…" : "Preview (dry run)"}
+          </button>
+          <button className="adm-btn adm-btn-primary" disabled={!file || busy || !preview} onClick={() => void runImport()}>
+            {busy && preview ? "Importing…" : "Import"}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

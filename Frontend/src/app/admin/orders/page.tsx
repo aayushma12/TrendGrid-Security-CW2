@@ -4,12 +4,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   cancelOrder,
   deleteOrder,
+  getOrderStats,
   listOrders,
   refundOrder,
   updateOrder,
   updateOrderStatus,
   updatePaymentStatus,
 } from "@/lib/api/orders";
+import type { OrderStats } from "@/lib/api/orders";
 import { formatAuthError } from "@/lib/auth-context";
 import { ApiError } from "@/lib/api/client";
 import type { OrderAddress, OrderDto, OrderStatus, PaymentStatus } from "@/lib/api/types";
@@ -39,6 +41,15 @@ const ADDRESS_LOCKED_STATUSES = new Set<OrderStatus>([
 const PAYMENT_STATUSES: PaymentStatus[] = ["PENDING", "PAID", "FAILED", "REFUNDED"];
 const CANCELLABLE = new Set<OrderStatus>(["PENDING", "CONFIRMED", "PROCESSING", "PACKED", "READY_FOR_SHIPMENT"]);
 const PAGE_SIZE = 10;
+
+function StatCard({ label, value }: { label: string; value: number | string }) {
+  return (
+    <div className="adm-stat">
+      <div className="adm-stat-label">{label}</div>
+      <div className="adm-stat-value">{value}</div>
+    </div>
+  );
+}
 
 function printInvoice(order: OrderDto) {
   const win = window.open("", "_blank", "width=800,height=1000");
@@ -125,6 +136,7 @@ export default function OrdersAdmin() {
   const [statusModalOrder, setStatusModalOrder] = useState<OrderDto | null>(null);
   const [savingStatus, setSavingStatus] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [stats, setStats] = useState<OrderStats | null>(null);
   const [toast, showToast] = useToast();
   const { confirm, prompt, dialog } = useConfirmDialog();
 
@@ -168,9 +180,23 @@ export default function OrdersAdmin() {
     void load();
   }, [load]);
 
+  const loadStats = useCallback(async () => {
+    try {
+      const res = await getOrderStats();
+      setStats(res.data);
+    } catch {
+      // Non-fatal — the order list itself still works if the stats call fails.
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadStats();
+  }, [loadStats]);
+
   function applyUpdated(updated: OrderDto) {
     setOrders((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
     setActive((a) => (a && a.id === updated.id ? updated : a));
+    void loadStats();
   }
 
   async function submitStatusUpdate(order: OrderDto, status: OrderStatus, note: string) {
@@ -297,9 +323,31 @@ export default function OrdersAdmin() {
       </div>
 
       <div className="adm-stats">
-        <div className="adm-stat"><div className="adm-stat-label">Total orders</div><div className="adm-stat-value">{total}</div></div>
-        <div className="adm-stat"><div className="adm-stat-label">Page</div><div className="adm-stat-value">{page} / {totalPages}</div></div>
+        <StatCard label="Total orders" value={stats?.totalOrders ?? total} />
+        <StatCard label="Pending" value={stats?.pendingOrders ?? "—"} />
+        <StatCard label="Confirmed" value={stats?.confirmedOrders ?? "—"} />
+        <StatCard label="Delivered" value={stats?.deliveredOrders ?? "—"} />
+        <StatCard label="Cancelled" value={stats?.cancelledOrders ?? "—"} />
+        <StatCard label="Today's orders" value={stats?.todayOrders ?? "—"} />
+        <StatCard label="Total revenue" value={stats ? formatMoney(stats.totalRevenue, "NPR") : "—"} />
+        <StatCard label="This month's revenue" value={stats ? formatMoney(stats.monthlyRevenue, "NPR") : "—"} />
       </div>
+
+      {stats && stats.bestSellers.length > 0 && (
+        <div className="adm-card" style={{ marginBottom: 16 }}>
+          <div className="adm-card-head"><div><h3>Best sellers</h3><p>By units sold across non-cancelled orders</p></div></div>
+          <div className="adm-card-body" style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+            {stats.bestSellers.map((p) => (
+              <div key={p.productId} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", border: "1px solid var(--adm-border, #e5e7eb)", borderRadius: 10 }}>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 13 }}>{p.productName}</div>
+                  <div style={{ fontSize: 12, color: "#6b7280" }}>{p.quantitySold} sold · {formatMoney(p.revenue, "NPR")}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div style={{ marginBottom: 16 }}>
         <OrderFilters value={filter} onChange={setFilter} statuses={ALL_STATUSES} />

@@ -4,13 +4,15 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   approveReview,
   deleteReview,
+  getReviewAnalytics,
   hideReview,
   listReviews,
   rejectReview,
   replyToReview,
   restoreReview,
 } from "@/lib/api/reviews";
-import { listProducts } from "@/lib/api/products";
+import type { ReviewAnalytics } from "@/lib/api/reviews";
+import { listAllProducts } from "@/lib/api/products";
 import { listUsers } from "@/lib/api/users";
 import { formatAuthError } from "@/lib/auth-context";
 import { ApiError } from "@/lib/api/client";
@@ -48,6 +50,7 @@ export default function ReviewsAdmin() {
   const [replyingId, setReplyingId] = useState<string | null>(null);
   const [replyText, setReplyText] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [analytics, setAnalytics] = useState<ReviewAnalytics | null>(null);
   const [toast, showToast] = useToast();
   const { confirm, dialog } = useConfirmDialog();
 
@@ -55,13 +58,13 @@ export default function ReviewsAdmin() {
     setLoading(true);
     setError(null);
     try {
-      const [reviewRes, productRes, userRes] = await Promise.all([
+      const [reviewRes, allProducts, userRes] = await Promise.all([
         listReviews({ limit: 100 }),
-        listProducts({ limit: 100 }),
+        listAllProducts(),
         listUsers({ limit: 100 }),
       ]);
       setReviews(reviewRes.data);
-      setProductNames(Object.fromEntries(productRes.data.map((p) => [p.id, p.name])));
+      setProductNames(Object.fromEntries(allProducts.map((p) => [p.id, p.name])));
       setUserNames(Object.fromEntries(userRes.data.map((u) => [u.id, `${u.firstName} ${u.lastName}`])));
     } catch (err) {
       setError(formatAuthError(err));
@@ -73,6 +76,19 @@ export default function ReviewsAdmin() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const loadAnalytics = useCallback(async () => {
+    try {
+      const res = await getReviewAnalytics();
+      setAnalytics(res.data);
+    } catch {
+      // Non-fatal — the review list itself still works if analytics fails.
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadAnalytics();
+  }, [loadAnalytics]);
 
   const counts = useMemo(() => {
     const m: Record<string, number> = { all: reviews.length };
@@ -86,6 +102,7 @@ export default function ReviewsAdmin() {
 
   function applyUpdated(updated: ReviewDto) {
     setReviews((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+    void loadAnalytics();
   }
 
   async function runAction(id: string, label: string, action: () => Promise<{ data: ReviewDto }>) {
@@ -155,10 +172,43 @@ export default function ReviewsAdmin() {
       </div>
 
       <div className="adm-stats">
-        <div className="adm-stat"><div className="adm-stat-label">Total reviews</div><div className="adm-stat-value">{reviews.length}</div></div>
-        <div className="adm-stat"><div className="adm-stat-label">Awaiting moderation</div><div className="adm-stat-value">{counts.PENDING ?? 0}</div></div>
-        <div className="adm-stat"><div className="adm-stat-label">Avg rating (approved)</div><div className="adm-stat-value">{avgRating}★</div></div>
+        <div className="adm-stat"><div className="adm-stat-label">Total reviews</div><div className="adm-stat-value">{analytics?.totalReviews ?? reviews.length}</div></div>
+        <div className="adm-stat"><div className="adm-stat-label">Awaiting moderation</div><div className="adm-stat-value">{analytics?.pendingCount ?? counts.PENDING ?? 0}</div></div>
+        <div className="adm-stat"><div className="adm-stat-label">Approved</div><div className="adm-stat-value">{analytics?.approvedCount ?? counts.APPROVED ?? 0}</div></div>
+        <div className="adm-stat"><div className="adm-stat-label">Rejected</div><div className="adm-stat-value">{analytics?.rejectedCount ?? counts.REJECTED ?? 0}</div></div>
+        <div className="adm-stat"><div className="adm-stat-label">Avg rating (approved)</div><div className="adm-stat-value">{analytics ? analytics.averageRating.toFixed(1) : avgRating}★</div></div>
       </div>
+
+      {analytics && (analytics.topRated.length > 0 || analytics.lowestRated.length > 0) && (
+        <div className="adm-grid-2" style={{ marginBottom: 16 }}>
+          {analytics.topRated.length > 0 && (
+            <div className="adm-card">
+              <div className="adm-card-head"><div><h3>Top rated products</h3><p>Minimum 3 approved reviews</p></div></div>
+              <div className="adm-card-body" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {analytics.topRated.map((p) => (
+                  <div key={p.productId} style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                    <span>{p.productName}</span>
+                    <span><Stars n={Math.round(p.averageRating)} /> {p.averageRating.toFixed(1)} ({p.reviewCount})</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {analytics.lowestRated.length > 0 && (
+            <div className="adm-card">
+              <div className="adm-card-head"><div><h3>Lowest rated products</h3><p>Minimum 3 approved reviews — may need attention</p></div></div>
+              <div className="adm-card-body" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {analytics.lowestRated.map((p) => (
+                  <div key={p.productId} style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                    <span>{p.productName}</span>
+                    <span><Stars n={Math.round(p.averageRating)} /> {p.averageRating.toFixed(1)} ({p.reviewCount})</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="adm-pills">
         {FILTERS.map((f) => (
