@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { getOrderStats } from "@/lib/api/orders";
 
 type Icon = (p: { className?: string }) => React.ReactElement;
 
@@ -40,6 +41,12 @@ const I = {
   users: () => (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="8" r="3.2" /><path d="M3.5 20a5.5 5.5 0 0 1 11 0" /><path d="M16 5.2a3.2 3.2 0 0 1 0 5.6M17.5 20a5.5 5.5 0 0 0-2.3-4.5" /></svg>
   ),
+  layers: () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3 9 5-9 5-9-5 9-5Z" /><path d="m3 13 9 5 9-5" /></svg>
+  ),
+  settings: () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3.2" /><path d="M19.4 13.5a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V19a2 2 0 1 1-4 0v-.2a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H5a2 2 0 1 1 0-4h.2a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H11a1.7 1.7 0 0 0 1-1.5V5a2 2 0 1 1 4 0v.2a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V11a1.7 1.7 0 0 0 1.5 1H19a2 2 0 1 1 0 4h-.2a1.7 1.7 0 0 0-1.5 1Z" /></svg>
+  ),
 };
 
 interface NavItem {
@@ -56,6 +63,7 @@ const PRIMARY: NavItem[] = [
 
 const CATALOG: NavItem[] = [
   { href: "/admin/categories", label: "Categories", icon: I.cat },
+  { href: "/admin/collections", label: "Collections", icon: I.layers },
   { href: "/admin/products", label: "Products", icon: I.prod },
 ];
 
@@ -66,21 +74,36 @@ const MARKETING: NavItem[] = [
 
 const COMMERCE: NavItem[] = [
   { href: "/admin/checkout", label: "Checkout", icon: I.checkout },
-  { href: "/admin/orders", label: "Orders", icon: I.order, badge: "14" },
+  { href: "/admin/orders", label: "Orders", icon: I.order },
   { href: "/admin/reviews", label: "Reviews", icon: I.star },
   { href: "/admin/customers", label: "Customers", icon: I.users },
 ];
 
+const ACCOUNT: NavItem[] = [{ href: "/admin/settings", label: "Settings", icon: I.settings }];
+
 export function AdminSidebar({ onLogout }: { onLogout?: () => void }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const [pendingOrders, setPendingOrders] = useState<number | null>(null);
+
+  useEffect(() => {
+    void getOrderStats()
+      .then((res) => setPendingOrders(res.data.pendingOrders))
+      .catch(() => setPendingOrders(null));
+  }, [pathname]);
 
   const isActive = (href: string) =>
     href === "/admin" ? pathname === "/admin" : pathname.startsWith(href);
 
+  const badgeFor = (item: NavItem): string | null => {
+    if (item.href === "/admin/orders") return pendingOrders ? String(pendingOrders) : null;
+    return item.badge ?? null;
+  };
+
   const renderItems = (items: NavItem[]) =>
     items.map((item) => {
       const Ico = item.icon;
+      const badge = badgeFor(item);
       return (
         <Link
           key={item.href}
@@ -90,7 +113,7 @@ export function AdminSidebar({ onLogout }: { onLogout?: () => void }) {
         >
           <Ico />
           <span>{item.label}</span>
-          {item.badge && <span className="adm-nav-badge">{item.badge}</span>}
+          {badge && <span className="adm-nav-badge">{badge}</span>}
         </Link>
       );
     });
@@ -128,6 +151,9 @@ export function AdminSidebar({ onLogout }: { onLogout?: () => void }) {
 
         <div className="adm-nav-label">Commerce</div>
         {renderItems(COMMERCE)}
+
+        <div className="adm-nav-label">Account</div>
+        {renderItems(ACCOUNT)}
 
         <div className="adm-sidebar-foot">
           <a href="/" target="_blank" rel="noreferrer" className="adm-nav-item" style={{ paddingLeft: 11 }}>

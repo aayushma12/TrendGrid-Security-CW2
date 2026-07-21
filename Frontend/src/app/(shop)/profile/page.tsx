@@ -11,6 +11,10 @@ import { useAuth } from "@/lib/auth-context";
 import { getProduct } from "@/lib/api/products";
 import { formatPrice } from "@/lib/shop-data";
 import type { ProductDto } from "@/lib/api/types";
+import { MfaEnrollmentCard } from "@/components/auth/MfaEnrollmentCard";
+import { ChangePasswordForm } from "@/components/auth/ChangePasswordForm";
+import { LogoutAllButton } from "@/components/auth/LogoutAllButton";
+import { PasswordExpiredBanner } from "@/components/auth/PasswordExpiredBanner";
 
 /** /profile — real signed-in account summary + wishlist (wishlist itself stays local — no backend feature for it yet). */
 export default function ProfilePage() {
@@ -20,11 +24,13 @@ export default function ProfilePage() {
   const [loadingWishlist, setLoadingWishlist] = useState(true);
 
   useEffect(() => {
-    if (wishlist.length === 0) {
-      setWished([]);
-      setLoadingWishlist(false);
-      return;
-    }
+    // No special-case for an empty wishlist needed: Promise.all([]) resolves
+    // to [] on its own, so this stays a single code path either way.
+    // The loading flag itself is the canonical exception to
+    // react-hooks/set-state-in-effect — "kick off an async fetch and flip a
+    // loading flag when a dependency changes" is a recommended effect use,
+    // not the derived-state anti-pattern the rule targets.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoadingWishlist(true);
     Promise.all(wishlist.map((id) => getProduct(id).then((r) => r.data).catch(() => null)))
       .then((results) => setWished(results.filter((p): p is ProductDto => Boolean(p))))
@@ -50,7 +56,7 @@ export default function ProfilePage() {
           ) : !isAuthenticated || !user ? (
             <div className="nx-empty">
               <strong>Sign in to view your profile</strong>
-              Your account, orders and wishlist are all in one place once you're signed in.
+              Your account, orders and wishlist are all in one place once you&apos;re signed in.
               <div style={{ marginTop: 20 }}>
                 <Link href="/login?redirect=/profile" className="nx-btn nx-btn-accent">
                   Sign in
@@ -59,6 +65,8 @@ export default function ProfilePage() {
             </div>
           ) : (
             <>
+              <PasswordExpiredBanner onChangePassword={() => document.getElementById("security")?.scrollIntoView({ behavior: "smooth" })} />
+
               <div className="nx-profile-hero">
                 <span className="nx-avatar-big" aria-hidden>{initials.toUpperCase()}</span>
                 <div>
@@ -144,7 +152,32 @@ export default function ProfilePage() {
                 </FadeUp>
               </div>
 
-              <section className="nx-related">
+              <section className="nx-related" id="security">
+                <FadeUp>
+                  <div className="nx-section-head">
+                    <h2 className="nx-h2">Security</h2>
+                  </div>
+                </FadeUp>
+                <div className="nx-profile-grid">
+                  <FadeUp>
+                    <ChangePasswordForm />
+                  </FadeUp>
+                  <FadeUp delay={0.1}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                      <MfaEnrollmentCard />
+                      <div style={{ border: "1px solid #e5e7eb", borderRadius: 12, padding: "20px 22px", background: "#fff" }}>
+                        <h3 style={{ margin: "0 0 6px" }}>Sessions</h3>
+                        <p style={{ fontSize: 13, color: "#6b7280", margin: "0 0 14px" }}>
+                          Signed in somewhere you don&apos;t recognize? Sign out of every device at once.
+                        </p>
+                        <LogoutAllButton redirectTo="/login" />
+                      </div>
+                    </div>
+                  </FadeUp>
+                </div>
+              </section>
+
+              <section className="nx-related" id="wishlist">
                 <FadeUp>
                   <div className="nx-section-head">
                     <h2 className="nx-h2">Your Wishlist</h2>

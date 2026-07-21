@@ -14,6 +14,7 @@ import { MobileNav } from "@/components/storefront/MobileNav";
 import { StoreProvider } from "@/lib/store-context";
 import { NexaChrome } from "@/components/home-nexa/NexaChrome";
 import { PageTransition } from "@/components/storefront/PageTransition";
+import { CustomerAreaGuard } from "@/components/storefront/CustomerAreaGuard";
 import { AuthProvider } from "@/lib/auth-context";
 import { HomepageProvider } from "@/lib/homepage-context";
 
@@ -47,15 +48,17 @@ export default function ShopLayout({ children }: { children: React.ReactNode }) 
       {/* AuthProvider is additive: it only exposes a null user until someone
           signs in via /login, so it doesn't affect the existing mock storefront. */}
       <AuthProvider scope="customer">
-        <StoreProvider>
-          <HomepageProvider>
-            <div className={`shop ${nexaDisplay.variable} ${nexaBody.variable} ${nexaSerif.variable}`}>
-              <PageTransition>{children}</PageTransition>
-              <MobileNav />
-              <NexaChrome />
-            </div>
-          </HomepageProvider>
-        </StoreProvider>
+        <CustomerAreaGuard>
+          <StoreProvider>
+            <HomepageProvider>
+              <div className={`shop ${nexaDisplay.variable} ${nexaBody.variable} ${nexaSerif.variable}`}>
+                <PageTransition>{children}</PageTransition>
+                <MobileNav />
+                <NexaChrome />
+              </div>
+            </HomepageProvider>
+          </StoreProvider>
+        </CustomerAreaGuard>
       </AuthProvider>
     </>
   );

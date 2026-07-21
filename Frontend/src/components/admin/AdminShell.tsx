@@ -4,24 +4,25 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { AdminSidebar } from "@/components/admin/AdminSidebar";
 import { useAuth } from "@/lib/auth-context";
+import { isStaffRole } from "@/lib/roles";
 
 /** Admin and customer logins currently share one localStorage session (see
  *  auth-context.tsx), so `isAuthenticated` alone isn't enough here — a
  *  signed-in customer navigating straight to /admin would otherwise see the
  *  full console. Only an ADMIN/EDITOR account counts as "in" for this shell;
- *  loginAdmin() already rejects other roles at sign-in, this is the
+ *  the admin-scope login gate already rejects other roles at sign-in, this is the
  *  complementary guard for sessions that started elsewhere (e.g. the
- *  storefront login) or were valid once but had their role changed.
+ *  storefront login) or were valid once but had their role changed. The
+ *  reverse case (a staff session reaching the customer area) is guarded by
+ *  CustomerAreaGuard in components/storefront/.
  */
-const STAFF_ROLES = new Set(["ADMIN", "EDITOR"]);
-
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, loading, isAuthenticated, logout } = useAuth();
 
   const isLoginPage = pathname === "/admin/login";
-  const isStaff = isAuthenticated && Boolean(user && STAFF_ROLES.has(user.role));
+  const isStaff = isAuthenticated && isStaffRole(user?.role);
 
   useEffect(() => {
     if (loading) return;
