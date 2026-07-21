@@ -7,6 +7,7 @@ import jwt, { JwtPayload } from 'jsonwebtoken';
 import { env } from '../config/env';
 import { UnauthorizedError, ForbiddenError } from '../utils/errors';
 import { UserRole } from '../features/user/constants';
+import { ACCESS_TOKEN_COOKIE } from '../utils/cookies';
 
 export interface AuthUser {
   id: string;
@@ -21,8 +22,13 @@ declare module 'express-serve-static-core' {
 }
 
 const extractToken = (req: Request): string | null => {
+  // Header takes priority — a Swagger/Postman/mobile client presenting a
+  // Bearer token explicitly should never be silently overridden by a stale
+  // cookie from the same browser session.
   const header = req.get('authorization');
   if (header?.startsWith('Bearer ')) return header.slice(7).trim();
+  const cookieToken = req.cookies?.[ACCESS_TOKEN_COOKIE];
+  if (typeof cookieToken === 'string' && cookieToken) return cookieToken;
   if (typeof req.query.token === 'string') return req.query.token;
   return null;
 };
@@ -36,9 +42,33 @@ export const requireAuth = (req: Request, _res: Response, next: NextFunction): v
     if (!payload?.id || !payload?.role) throw new Error('Malformed token');
     req.user = { id: payload.id, email: payload.email, role: payload.role };
     next();
-  } catch (err) {
-    next(new UnauthorizedError((err as Error).message || 'Invalid token'));
+  } catch {
+    // Deliberately generic regardless of the actual failure (expired,
+    // bad signature, malformed payload that breaks the base64/JSON decode,
+    // ...) — the caught error's own message can leak internals (e.g. a raw
+    // JSON-parser error like "Bad control character..." for a corrupted
+    // payload segment), and the client has no legitimate need to know why,
+    // only that the token didn't work.
+    next(new UnauthorizedError('Invalid or expired token'));
   }
+};
+
+/**
+ * Like requireAuth, but never rejects — used on routes that are genuinely
+ * public (shoppers browsing with no session) yet still need to know WHO,
+ * if anyone, is asking, so the handler can show admins more than customers
+ * (e.g. draft/inactive products) without splitting one listing into two routes.
+ */
+export const optionalAuth = (req: Request, _res: Response, next: NextFunction): void => {
+  const token = extractToken(req);
+  if (!token) return next();
+  try {
+    const payload = jwt.verify(token, env.jwt.secret) as JwtPayload & AuthUser;
+    if (payload?.id && payload?.role) req.user = { id: payload.id, email: payload.email, role: payload.role };
+  } catch {
+    // Invalid/expired token on a public route — treat as anonymous rather than erroring.
+  }
+  next();
 };
 
 export const requireRole =

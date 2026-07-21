@@ -2,6 +2,7 @@ import express, { Application } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
+import cookieParser from 'cookie-parser';
 
 
 import { env } from './config/env';
@@ -11,6 +12,7 @@ import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { configureTrustProxy, tunnelContext } from './middleware/trustProxy';
 import { ipFilter } from './middleware/ipFilter';
 import { auditLog } from './middleware/auditLog';
+import { verifyCsrf } from './middleware/csrf';
 import { mountSwagger } from './config/swagger';
 
 const app: Application = express();
@@ -45,6 +47,8 @@ app.use(cors({ origin: env.corsOrigin, credentials: true }));
 app.use(compression());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(cookieParser());
+app.use(verifyCsrf);
 app.use(tunnelContext);
 
 
