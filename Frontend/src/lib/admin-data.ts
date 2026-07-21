@@ -102,7 +102,7 @@ export interface CheckoutSettings {
 export const HOME_SECTIONS: HomeSection[] = [
   { id: "sec_header", key: "NexaHeader", name: "Header / Navbar", description: "Top navigation, logo and cart", visible: true, heading: "Clothing.", subtext: "Sign up and GET 25% OFF for your first order." },
   { id: "sec_hero", key: "NexaHero", name: "Hero", description: "Masked word-stagger hero banner", visible: true, heading: "Step into Style", subtext: "Discover fashion that moves with you — timeless design for every day." },
-  { id: "sec_marquee", key: "NexaMarquee", name: "Marquee Strip", description: "Scrolling announcement strip", visible: true, heading: "New Season · Free Shipping over $180 · 24×7 Support", subtext: "" },
+  { id: "sec_marquee", key: "NexaMarquee", name: "Marquee Strip", description: "Scrolling announcement strip", visible: true, heading: "New Season · Free Shipping over Rs. 5,000 · 24×7 Support", subtext: "" },
   { id: "sec_categories", key: "NexaCategories", name: "Categories", description: "Tabbed category product grid", visible: true, heading: "Shape Your Signature Style", subtext: "Browse fashion categories and explore outfits that match your personality." },
   { id: "sec_arrivals", key: "NexaArrivals", name: "New Arrivals", description: "Horizontal snap-scroll rail", visible: true, heading: "New Arrivals", subtext: "Fresh drops — scroll sideways to browse." },
   { id: "sec_about", key: "NexaAbout", name: "About / Brand Story", description: "Brand narrative with milestones", visible: true, heading: "Crafted with intention, worn with confidence", subtext: "From a single atelier to a modern wardrobe house." },
@@ -222,17 +222,15 @@ export const ADMIN_ORDERS: AdminOrder[] = Array.from({ length: 14 }).map((_, i) 
 
 export const CHECKOUT_SETTINGS: CheckoutSettings = {
   freeShippingOver: STORE.freeShippingOver,
-  flatShipping: 10,
-  currency: "USD",
-  currencySymbol: "$",
-  taxRate: 0,
+  flatShipping: 150,
+  currency: "NPR",
+  currencySymbol: "Rs.",
+  taxRate: 13,
   guestCheckout: true,
   requirePhone: true,
   orderNotes: true,
   payments: [
-    { key: "card", label: "Credit / Debit Card", enabled: true },
-    { key: "paypal", label: "PayPal", enabled: true },
-    { key: "gpay", label: "Google Pay", enabled: false },
+    { key: "esewa", label: "eSewa", enabled: true },
     { key: "cod", label: "Cash on Delivery", enabled: true },
   ],
   fields: [
@@ -292,6 +290,28 @@ export const ADMIN_COUPONS: AdminCoupon[] = [
   { id: "cpn_bogo", code: "BOGOTEE", type: "buyXgetY", value: 1, minOrderAmount: 0, maxDiscountAmount: null, usageLimit: 300, usageCount: 44, perUserLimit: 1, startsAt: isoDate(-5), expiresAt: isoDate(15), isActive: true, appliesTo: "Shirt" },
 ];
 
+/* -------------------------------------------------------------- gift cards */
+
+export type GiftCardStatus = "active" | "redeemed" | "expired" | "disabled";
+
+export interface AdminGiftCard {
+  id: string;
+  code: string;
+  initialBalance: number;
+  currentBalance: number;
+  status: GiftCardStatus;
+  issuedTo: string;
+  expiresAt: string;
+  createdAt: string;
+}
+
+export const ADMIN_GIFT_CARDS: AdminGiftCard[] = [
+  { id: "gc_welcome1", code: "GIFT-WLCM-0001", initialBalance: 50, currentBalance: 50, status: "active", issuedTo: "amara.k@example.com", expiresAt: isoDate(300), createdAt: isoDate(-20) },
+  { id: "gc_holiday1", code: "GIFT-HOLI-2026", initialBalance: 100, currentBalance: 35, status: "active", issuedTo: "sofia.l@example.com", expiresAt: isoDate(180), createdAt: isoDate(-45) },
+  { id: "gc_redeemed1", code: "GIFT-BDAY-7712", initialBalance: 25, currentBalance: 0, status: "redeemed", issuedTo: "daniel.r@example.com", expiresAt: isoDate(90), createdAt: isoDate(-60) },
+  { id: "gc_expired1", code: "GIFT-SUMR-4420", initialBalance: 50, currentBalance: 12, status: "expired", issuedTo: "mia.c@example.com", expiresAt: isoDate(-10), createdAt: isoDate(-370) },
+];
+
 /* ---------------------------------------------------------------- banners */
 
 export type BannerPlacement = "announcement" | "hero" | "promo";
@@ -317,8 +337,8 @@ export const BANNER_PLACEMENT_LABELS: Record<BannerPlacement, string> = {
 };
 
 export const ADMIN_BANNERS: AdminBanner[] = [
-  { id: "bnr_ann1", placement: "announcement", title: "Sign up and GET 25% OFF your first order", subtext: "Use code WELCOME25 at checkout", ctaText: "Sign up now", ctaLink: "/account", bgColor: "#101828", textColor: "#ffffff", startsAt: isoDate(-30), expiresAt: isoDate(60), active: true },
-  { id: "bnr_ann2", placement: "announcement", title: "Complimentary shipping on orders over $180", subtext: "", ctaText: "Shop now", ctaLink: "/shop", bgColor: "#4f46e5", textColor: "#ffffff", startsAt: isoDate(-10), expiresAt: isoDate(30), active: false },
+  { id: "bnr_ann1", placement: "announcement", title: "Sign up and GET 25% OFF your first order", subtext: "Use code WELCOME25 at checkout", ctaText: "Sign up now", ctaLink: "/profile", bgColor: "#101828", textColor: "#ffffff", startsAt: isoDate(-30), expiresAt: isoDate(60), active: true },
+  { id: "bnr_ann2", placement: "announcement", title: "Complimentary shipping on orders over Rs. 5,000", subtext: "", ctaText: "Shop now", ctaLink: "/shop", bgColor: "#4f46e5", textColor: "#ffffff", startsAt: isoDate(-10), expiresAt: isoDate(30), active: false },
   { id: "bnr_hero1", placement: "hero", title: "Summer 2026 Collection", subtext: "Designed for modern confidence", ctaText: "Explore the drop", ctaLink: "/shop", bgColor: "#dcfce7", textColor: "#101828", startsAt: isoDate(-5), expiresAt: isoDate(45), active: true },
   { id: "bnr_promo1", placement: "promo", title: "Private Sale — up to 40% off", subtext: "Ends tonight at midnight", ctaText: "Grab the deals", ctaLink: "/shop", bgColor: "#fef3c7", textColor: "#7c2d12", startsAt: isoDate(0), expiresAt: isoDate(1), active: true },
 ];
@@ -593,7 +613,7 @@ export const HOME_CONTENT: Record<string, HomeSectionContent> = {
         itemFields: [t("q", "Question", ""), area("a", "Answer", "")],
         items: [
           { q: "How can I place an order?", a: "Browse the shop, add items to your cart, then proceed to checkout and choose your preferred payment method." },
-          { q: "What payment methods do you accept?", a: "We accept PayPal, all major credit/debit cards, Google Pay and Cash on Delivery." },
+          { q: "What payment methods do you accept?", a: "We accept eSewa and Cash on Delivery." },
           { q: "Can I track my order after it's been placed?", a: "Yes — once your order ships you'll receive a tracking number via email." },
           { q: "What is your return policy?", a: "Items can be returned within 30 days of delivery in their original condition." },
         ],
@@ -609,7 +629,7 @@ export const HOME_CONTENT: Record<string, HomeSectionContent> = {
         itemNoun: "feature",
         itemFields: [t("title", "Title", ""), area("text", "Text", "")],
         items: [
-          { title: "Free Shipping", text: "On every order over $180, delivered fast." },
+          { title: "Free Shipping", text: "On every order over Rs. 5,000, delivered fast." },
           { title: "Easy 30-Day Returns", text: "Changed your mind? Send it back free within 30 days." },
           { title: "Secure Checkout", text: "Encrypted payments with cards, wallets, and COD." },
           { title: "Human Support", text: "Real stylists on (406) 555-0120, Mon–Sat." },

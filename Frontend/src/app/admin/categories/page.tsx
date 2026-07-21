@@ -4,9 +4,11 @@ import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import {
+  bulkDeleteCategories,
+  bulkUpdateCategoryActive,
   createCategory,
   deleteCategory,
-  listCategories,
+  listAllCategories,
   removeCategoryImage,
   updateCategory,
   updateCategoryStatus,
@@ -71,6 +73,8 @@ export default function CategoriesAdmin() {
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<Draft | null>(null);
   const [saving, setSaving] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
   const [toast, showToast] = useToast();
   const { confirm, dialog } = useConfirmDialog();
 
@@ -78,8 +82,12 @@ export default function CategoriesAdmin() {
     setLoading(true);
     setError(null);
     try {
-      const res = await listCategories({ limit: 100 });
-      setCats(res.data.map(mapCategory));
+      // The full category tree (top-level + subcategories) can comfortably
+      // run into the hundreds — this page isn't paginated, so it pages
+      // through the API itself (which caps a single request at 100).
+      const all = await listAllCategories();
+      setCats(all.map(mapCategory));
+      setSelected(new Set());
     } catch (err) {
       setError(formatAuthError(err));
     } finally {
@@ -120,6 +128,61 @@ export default function CategoriesAdmin() {
       showToast(`“${c.name}” deleted`);
     } catch (err) {
       showToast(formatAuthError(err));
+    }
+  }
+
+  function toggleSelectOne(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+  const allSelected = sorted.length > 0 && sorted.every((c) => selected.has(c.id));
+  function toggleSelectAll() {
+    setSelected(allSelected ? new Set() : new Set(sorted.map((c) => c.id)));
+  }
+
+  async function bulkToggleVisible(visible: boolean) {
+    const ids = Array.from(selected);
+    if (ids.length === 0) return;
+    setBulkBusy(true);
+    try {
+      const res = await bulkUpdateCategoryActive(ids, visible);
+      showToast(`${res.data.updated} categor${res.data.updated === 1 ? "y" : "ies"} ${visible ? "shown" : "hidden"}`);
+      void loadCategories();
+    } catch (err) {
+      showToast(formatAuthError(err));
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
+  async function bulkRemove() {
+    const ids = Array.from(selected);
+    if (ids.length === 0) return;
+    if (
+      !(await confirm({
+        message: `Delete ${ids.length} selected categor${ids.length === 1 ? "y" : "ies"}? Categories that still have products or subcategories will be skipped.`,
+        confirmLabel: "Delete",
+        danger: true,
+      }))
+    )
+      return;
+    setBulkBusy(true);
+    try {
+      const res = await bulkDeleteCategories(ids);
+      if (res.data.failed.length > 0) {
+        showToast(`${res.data.deleted} deleted, ${res.data.failed.length} skipped (still has products/subcategories)`);
+      } else {
+        showToast(`${res.data.deleted} categor${res.data.deleted === 1 ? "y" : "ies"} deleted`);
+      }
+      void loadCategories();
+    } catch (err) {
+      showToast(formatAuthError(err));
+    } finally {
+      setBulkBusy(false);
     }
   }
 
@@ -224,12 +287,25 @@ export default function CategoriesAdmin() {
         </div>
       )}
 
+      {selected.size > 0 && (
+        <div className="adm-card" style={{ padding: "10px 16px", display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+          <strong>{selected.size} selected</strong>
+          <button className="adm-btn adm-btn-sm" disabled={bulkBusy} onClick={() => void bulkToggleVisible(true)}>Show</button>
+          <button className="adm-btn adm-btn-sm" disabled={bulkBusy} onClick={() => void bulkToggleVisible(false)}>Hide</button>
+          <button className="adm-btn adm-btn-sm adm-btn-danger" disabled={bulkBusy} onClick={() => void bulkRemove()}>Delete</button>
+          <button className="adm-btn adm-btn-sm" style={{ marginLeft: "auto" }} onClick={() => setSelected(new Set())}>Clear</button>
+        </div>
+      )}
+
       {!loading && !error && (
         <div className="adm-card">
           <div className="adm-table-wrap">
             <table className="adm-table">
               <thead>
                 <tr>
+                  <th style={{ width: 32 }}>
+                    <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} aria-label="Select all categories" />
+                  </th>
                   <th>Category</th>
                   <th>Slug</th>
                   <th>Subcategories</th>
@@ -241,6 +317,9 @@ export default function CategoriesAdmin() {
               <tbody>
                 {sorted.map((c) => (
                   <tr key={c.id}>
+                    <td>
+                      <input type="checkbox" checked={selected.has(c.id)} onChange={() => toggleSelectOne(c.id)} aria-label={`Select ${c.name}`} />
+                    </td>
                     <td>
                       <div className="adm-cell-flex">
                         <Image
@@ -278,7 +357,7 @@ export default function CategoriesAdmin() {
                 ))}
                 {sorted.length === 0 && (
                   <tr>
-                    <td colSpan={6}>
+                    <td colSpan={7}>
                       <div className="adm-empty">No categories yet. Create your first one.</div>
                     </td>
                   </tr>

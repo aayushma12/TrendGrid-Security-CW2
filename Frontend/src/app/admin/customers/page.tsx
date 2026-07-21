@@ -12,6 +12,7 @@ import { formatAuthError, useAuth } from "@/lib/auth-context";
 import { ApiError } from "@/lib/api/client";
 import type { UserDto, UserRole } from "@/lib/api/types";
 import { Badge, Toggle, Toast, useConfirmDialog, useToast } from "@/components/admin/ui";
+import { PasswordStrengthMeter, passwordMeetsPolicy } from "@/components/auth/PasswordStrengthMeter";
 
 const ROLES: UserRole[] = ["USER", "EDITOR", "ADMIN"];
 const ROLE_TONE: Record<UserRole, string> = { ADMIN: "purple", EDITOR: "blue", USER: "slate" };
@@ -318,7 +319,7 @@ function UserModal({
   const [d, setD] = useState<Draft>(draft);
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setD((p) => ({ ...p, [k]: v }));
   const isNew = !draft.id;
-  const passwordOk = !isNew || (d.password.length >= 8 && /[A-Z]/.test(d.password) && /[0-9]/.test(d.password));
+  const passwordOk = !isNew || passwordMeetsPolicy(d.password);
 
   return (
     <div className="adm-overlay adm-modal-center" onClick={onClose}>
@@ -359,7 +360,7 @@ function UserModal({
           <div className="adm-field">
             <label>Email</label>
             <input className="adm-input" type="email" value={d.email} readOnly={!isNew} disabled={!isNew} onChange={(e) => set("email", e.target.value)} placeholder="name@example.com" />
-            {!isNew && <span className="adm-hint">Email can't be changed after account creation.</span>}
+            {!isNew && <span className="adm-hint">Email can&apos;t be changed after account creation.</span>}
           </div>
           <div className="adm-form-row">
             <div className="adm-field"><label>Phone</label><input className="adm-input" value={d.phoneNumber} onChange={(e) => set("phoneNumber", e.target.value)} placeholder="Optional" /></div>
@@ -373,11 +374,12 @@ function UserModal({
           {isNew && (
             <div className="adm-field">
               <label>Password</label>
-              <input className="adm-input" type="password" value={d.password} onChange={(e) => set("password", e.target.value)} placeholder="Min 8 chars, 1 uppercase, 1 number" />
+              <input className="adm-input" type="password" value={d.password} onChange={(e) => set("password", e.target.value)} placeholder="8+ chars: upper, lower, number, symbol" />
+              <PasswordStrengthMeter password={d.password} />
             </div>
           )}
           <div className="adm-switchrow">
-            <div className="adm-switchrow-info"><strong>Active</strong><span>Inactive users can't sign in</span></div>
+            <div className="adm-switchrow-info"><strong>Active</strong><span>Inactive users can&apos;t sign in</span></div>
             <Toggle checked={d.isActive} onChange={(v) => set("isActive", v)} />
           </div>
         </div>
