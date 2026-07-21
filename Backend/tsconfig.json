@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "commonjs",
+    "module": "Node16",
     "lib": ["ES2022"],
     "outDir": "./dist",
     "rootDir": "./src",
@@ -18,18 +18,7 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noImplicitReturns": true,
-    "moduleResolution": "node",
-    "baseUrl": "./src",
-    "paths": {
-      "@config/*": ["config/*"],
-      "@controllers/*": ["controllers/*"],
-      "@routes/*": ["routes/*"],
-      "@middleware/*": ["middleware/*"],
-      "@services/*": ["services/*"],
-      "@models/*": ["models/*"],
-      "@utils/*": ["utils/*"],
-      "@types/*": ["types/*"]
-    }
+    "moduleResolution": "Node16"
   },
   "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "dist", "tests"]

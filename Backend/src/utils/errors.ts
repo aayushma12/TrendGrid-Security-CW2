@@ -43,14 +43,14 @@ export class NotFoundError extends AppError {
 }
 
 export class UnauthorizedError extends AppError {
-  constructor(message: string = MESSAGES.UNAUTHORIZED) {
-    super(message, HTTP_STATUS.UNAUTHORIZED);
+  constructor(message: string = MESSAGES.UNAUTHORIZED, errors: ApiErrorResponse['errors'] = []) {
+    super(message, HTTP_STATUS.UNAUTHORIZED, errors);
   }
 }
 
 export class ForbiddenError extends AppError {
-  constructor(message: string = MESSAGES.FORBIDDEN) {
-    super(message, HTTP_STATUS.FORBIDDEN);
+  constructor(message: string = MESSAGES.FORBIDDEN, errors: ApiErrorResponse['errors'] = []) {
+    super(message, HTTP_STATUS.FORBIDDEN, errors);
   }
 }
 

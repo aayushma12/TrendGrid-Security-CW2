@@ -108,5 +108,8 @@ export const mountSwagger = (app: Application): void => {
   }
 
   app.use(`${env.apiPrefix}${swaggerPath}`, swaggerUi.serve, swaggerUi.setup(spec));
+  // Swagger's own raw JSON spec endpoint, not an application API response —
+  // the standard success() envelope doesn't apply here.
+  // eslint-disable-next-line no-restricted-syntax
   app.get(`${env.apiPrefix}${swaggerPath}.json`, (_req, res) => res.json(spec));
 };
