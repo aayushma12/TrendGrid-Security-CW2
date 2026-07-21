@@ -24,6 +24,10 @@ const schema = z.object({
   PORT: z.coerce.number().int().positive().default(5000),
   API_PREFIX: z.string().default('/api/v1'),
   API_VERSION: z.string().default('1.0.0'),
+  /** Publicly reachable base URL for this API — used for browser-redirect
+   *  callbacks (e.g. eSewa success/failure URLs), which the frontend origin
+   *  cannot serve directly since verification must happen server-side. */
+  API_BASE_URL: z.string().default('http://localhost:5000'),
   CORS_ORIGIN: z.string().default('*'),
   LOG_LEVEL: z.enum(['error', 'warn', 'info', 'http', 'debug']).default('info'),
   TRUST_PROXY_HOPS: z.coerce.number().int().min(0).optional(),
@@ -47,6 +51,18 @@ const schema = z.object({
   // Password policy
   PASSWORD_MAX_AGE_DAYS: z.coerce.number().int().min(0).default(90),
   PASSWORD_HISTORY_COUNT: z.coerce.number().int().min(0).default(5),
+  PASSWORD_RESET_TOKEN_TTL_MIN: z.coerce.number().int().min(1).default(30),
+
+  // Outbound email (forgot-password, security notices). Sending no-ops (logs
+  // only) when SMTP_HOST is unset, so local dev isn't blocked — see utils/email.ts.
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().int().positive().default(587),
+  SMTP_SECURE: bool.default(false),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  EMAIL_FROM: z.string().default('NDH Trendgrid <no-reply@trendgrid.local>'),
+  // Public frontend origin the reset-password link points to.
+  FRONTEND_URL: z.string().default('http://localhost:3000'),
 
   // MFA (TOTP)
   MFA_ISSUER: z.string().default('NDH Trendgrid'),
@@ -88,6 +104,14 @@ const schema = z.object({
   FREE_SHIPPING_THRESHOLD: z.coerce.number().nonnegative().default(5000),
   DEFAULT_COMMERCE_CURRENCY: z.string().length(3).toUpperCase().default('NPR'),
 
+  // eSewa payment gateway (Nepal). Defaults are eSewa's own publicly documented
+  // UAT/sandbox test merchant — safe to ship as-is for non-production use; set
+  // real values via env for production.
+  ESEWA_MERCHANT_CODE: z.string().default('EPAYTEST'),
+  ESEWA_SECRET_KEY: z.string().default('8gBm/:&EnhH.1/q'),
+  ESEWA_PAYMENT_URL: z.string().default('https://rc-epay.esewa.com.np/api/epay/main/v2/form'),
+  ESEWA_STATUS_CHECK_URL: z.string().default('https://rc.esewa.com.np/api/epay/transaction/status/'),
+
   // Swagger
   SWAGGER_ENABLED: bool.default(true),
   SWAGGER_PATH: z.string().default('/docs'),
@@ -126,7 +150,11 @@ export const env = {
   port: raw.PORT,
   apiPrefix: raw.API_PREFIX,
   apiVersion: raw.API_VERSION,
-  corsOrigin: raw.CORS_ORIGIN,
+  // Cookies + `credentials: true` CORS can't pair with a wildcard origin —
+  // browsers reject `Access-Control-Allow-Origin: *` alongside credentialed
+  // requests. Fall back to FRONTEND_URL unless CORS_ORIGIN is explicitly set
+  // to something else.
+  corsOrigin: raw.CORS_ORIGIN === '*' ? raw.FRONTEND_URL : raw.CORS_ORIGIN,
   logLevel: raw.LOG_LEVEL,
   trustProxyHops: raw.TRUST_PROXY_HOPS,
 
@@ -149,6 +177,7 @@ export const env = {
     lockoutDurationMin: raw.ACCOUNT_LOCKOUT_DURATION_MIN,
     passwordMaxAgeDays: raw.PASSWORD_MAX_AGE_DAYS,
     passwordHistoryCount: raw.PASSWORD_HISTORY_COUNT,
+    passwordResetTokenTtlMin: raw.PASSWORD_RESET_TOKEN_TTL_MIN,
     mfaIssuer: raw.MFA_ISSUER,
     encryptionKey: raw.ENCRYPTION_KEY,
     captchaProvider: raw.CAPTCHA_PROVIDER,
@@ -157,6 +186,18 @@ export const env = {
     ipBlocklist: raw.IP_BLOCKLIST.split(',').map((s) => s.trim()).filter(Boolean),
     alertWebhookUrl: raw.SECURITY_ALERT_WEBHOOK_URL,
   },
+
+  email: {
+    smtpHost: raw.SMTP_HOST,
+    smtpPort: raw.SMTP_PORT,
+    smtpSecure: raw.SMTP_SECURE,
+    smtpUser: raw.SMTP_USER,
+    smtpPass: raw.SMTP_PASS,
+    from: raw.EMAIL_FROM,
+  },
+
+  frontendUrl: raw.FRONTEND_URL,
+  apiBaseUrl: raw.API_BASE_URL,
 
   cloudinary: {
     cloudName: raw.CLOUDINARY_CLOUD_NAME,
@@ -179,6 +220,13 @@ export const env = {
     shippingFlatRate: raw.SHIPPING_FLAT_RATE,
     freeShippingThreshold: raw.FREE_SHIPPING_THRESHOLD,
     currency: raw.DEFAULT_COMMERCE_CURRENCY,
+  },
+
+  esewa: {
+    merchantCode: raw.ESEWA_MERCHANT_CODE,
+    secretKey: raw.ESEWA_SECRET_KEY,
+    paymentUrl: raw.ESEWA_PAYMENT_URL,
+    statusCheckUrl: raw.ESEWA_STATUS_CHECK_URL,
   },
 
   swagger: {
@@ -212,5 +260,12 @@ if (isProduction && env.security.captchaProvider === 'none') {
   // eslint-disable-next-line no-console
   console.warn(
     ' CAPTCHA is disabled (CAPTCHA_PROVIDER=none). Login/register are unprotected against automated abuse beyond rate limiting.',
+  );
+}
+
+if (isProduction && !env.email.smtpHost) {
+  // eslint-disable-next-line no-console
+  console.warn(
+    ' SMTP_HOST is unset — forgot-password emails will only be logged, never delivered, in production.',
   );
 }
