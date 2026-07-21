@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    // ts-jest transpiles file-by-file and can't fully type-check Node16's
+    // hybrid module kind without this — see ts-jest's TS151002 warning.
+    "isolatedModules": true
+  },
+  "include": ["src/**/*.ts", "tests/**/*.ts", "prisma/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}

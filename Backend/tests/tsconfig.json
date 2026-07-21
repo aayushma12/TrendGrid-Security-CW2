@@ -1,0 +1,15 @@
+{
+  // VS Code's TS server picks the nearest tsconfig.json to the file you have
+  // open. The root tsconfig.json only includes src/**/*.ts, so any file under
+  // tests/ was treated as an "orphan" with bare default compiler options —
+  // no @types/jest, hence "Cannot find name 'describe'/'expect'/..." even
+  // though `npm test` (which uses tsconfig.test.json via ts-jest) was fine.
+  // This file gives the editor a real, nearer project for tests/ that
+  // matches what ts-jest actually compiles with.
+  "extends": "../tsconfig.test.json",
+  "compilerOptions": {
+    "rootDir": ".."
+  },
+  "include": ["**/*.ts", "../src/**/*.ts"],
+  "exclude": ["../node_modules", "../dist"]
+}
