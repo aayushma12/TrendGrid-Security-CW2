@@ -8,7 +8,11 @@ module.exports = {
   parserOptions: {
     ecmaVersion: 2022,
     sourceType: 'module',
-    project: './tsconfig.json',
+    // tsconfig.json alone excludes tests/ (see its `exclude`), which made
+    // every test file fail to parse for type-aware rules. tsconfig.test.json
+    // includes both src/ and tests/, so listing both here covers all files
+    // ESLint is ever pointed at without changing what either tsconfig builds.
+    project: ['./tsconfig.json', './tsconfig.test.json'],
   },
   plugins: ['@typescript-eslint', 'import'],
   extends: [
@@ -19,7 +23,7 @@ module.exports = {
   ],
   settings: {
     'import/resolver': {
-      typescript: { project: './tsconfig.json' },
+      typescript: { project: ['./tsconfig.json', './tsconfig.test.json'] },
       node: true,
     },
   },
@@ -90,6 +94,16 @@ module.exports = {
     /* The response builder is the only place res.json is legal. */
     {
       files: ['src/utils/response.ts'],
+      rules: {
+        'no-restricted-syntax': 'off',
+      },
+    },
+
+    /* Tests build throwaway Express apps/handlers to exercise middleware in
+     * isolation — they never go through the app's real response tunnel, so
+     * the tunnel invariant doesn't apply to them. */
+    {
+      files: ['tests/**/*.ts'],
       rules: {
         'no-restricted-syntax': 'off',
       },
