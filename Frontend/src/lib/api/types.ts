@@ -41,6 +41,9 @@ export interface AuthUser {
   role: "ADMIN" | "USER" | "EDITOR";
   isActive: boolean;
   avatarUrl?: string;
+  mfaEnabled: boolean;
+  /** "totp" | "email" | undefined — which second factor is active, if any. */
+  mfaMethod?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -50,7 +53,26 @@ export interface AuthTokensPayload {
   refreshToken: string;
   user: AuthUser;
   permissions: string[];
+  /** Soft signal only — the API never blocks login on this, it's here for the
+   *  frontend to prompt a change. See PASSWORD_MAX_AGE_DAYS on the API. */
+  passwordExpired: boolean;
 }
+
+/** Returned by POST /auth/login instead of tokens when the account has MFA
+ *  enrolled — `mfaToken` is a short-lived (5min) challenge JWT, exchanged for
+ *  real tokens via POST /auth/mfa/verify. */
+export interface MfaChallenge {
+  mfaRequired: true;
+  mfaToken: string;
+  /** Tells the login form whether to prompt for an authenticator code or
+   *  tell the user a code was emailed (with a resend option). */
+  mfaMethod: "totp" | "email";
+}
+
+export type LoginResult = AuthTokensPayload | MfaChallenge;
+
+export const isMfaChallenge = (result: LoginResult): result is MfaChallenge =>
+  (result as MfaChallenge).mfaRequired === true;
 
 export interface CategoryDto {
   id: string;
