@@ -12,6 +12,7 @@
 import axios from 'axios';
 
 import { env } from '../config/env';
+
 import { logger } from './logger';
 
 export type SecurityEventType =
@@ -21,7 +22,11 @@ export type SecurityEventType =
   | 'mfa_failed'
   | 'ip_blocked'
   | 'role_escalation_attempt'
-  | 'refresh_token_reuse';
+  | 'refresh_token_reuse'
+  | 'password_reset_requested'
+  | 'password_reset_completed'
+  | 'password_reset_invalid_token'
+  | 'admin_mfa_reset';
 
 export const sendSecurityAlert = (
   event: SecurityEventType,
