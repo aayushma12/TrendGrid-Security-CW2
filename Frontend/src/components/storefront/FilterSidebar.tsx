@@ -1,12 +1,16 @@
 "use client";
 
 /**
- * Filter sidebar + mobile drawer (Section 4).
+ * Filter sidebar + mobile drawer.
  *
  * `Filters` is a controlled panel reused in both the desktop sidebar and the
  * mobile drawer. Each group is collapsible (chevron toggle) and its open/closed
  * state persists per group key in sessionStorage. `FilterDrawer` wraps the same
  * panel in a slide-in dialog for < 1024px.
+ *
+ * Category isn't a group here — the shop page already has category pills in
+ * its sticky bar, so a second category control here would just be a
+ * redundant, easy-to-desync duplicate of the same state.
  */
 
 import { useEffect, useState, type ReactNode } from "react";
@@ -85,66 +89,85 @@ function FilterGroup({
 }
 
 export interface FiltersProps {
-  categories: string[];
   colors: string[];
   sizes: string[];
-  activeCategories: string[];
+  genders: string[];
   activeColors: string[];
   activeSizes: string[];
-  maxPrice: number;
-  priceCeiling?: number;
-  onToggleCategory: (c: string) => void;
+  activeGenders: string[];
+  minPrice: string;
+  maxPrice: string;
+  onSale: boolean;
+  inStock: boolean;
   onToggleColor: (c: string) => void;
   onToggleSize: (s: string) => void;
-  onMaxPrice: (n: number) => void;
+  onToggleGender: (g: string) => void;
+  onMinPrice: (v: string) => void;
+  onMaxPrice: (v: string) => void;
+  onToggleOnSale: () => void;
+  onToggleInStock: () => void;
   showTitle?: boolean;
 }
 
 export function Filters({
-  categories,
   colors,
   sizes,
-  activeCategories,
+  genders,
   activeColors,
   activeSizes,
+  activeGenders,
+  minPrice,
   maxPrice,
-  priceCeiling = 300,
-  onToggleCategory,
+  onSale,
+  inStock,
   onToggleColor,
   onToggleSize,
+  onToggleGender,
+  onMinPrice,
   onMaxPrice,
+  onToggleOnSale,
+  onToggleInStock,
   showTitle = true,
 }: FiltersProps) {
   return (
     <aside className="filters" aria-label="Filter options">
       {showTitle && <h2>Filter Options</h2>}
 
-      <FilterGroup title="Category" groupKey="category">
-        {categories.map((cat) => (
-          <label key={cat} className="check">
-            <input
-              type="checkbox"
-              checked={activeCategories.includes(cat)}
-              onChange={() => onToggleCategory(cat)}
-            />
-            {cat}
-          </label>
-        ))}
+      <FilterGroup title="Price (NPR)" groupKey="price">
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <input
+            type="number"
+            inputMode="numeric"
+            min={0}
+            className="filter-price-input"
+            style={{ width: "100%", padding: "6px 8px", borderRadius: 6, border: "1px solid #d1d5db" }}
+            placeholder="Min"
+            aria-label="Minimum price"
+            value={minPrice}
+            onChange={(e) => onMinPrice(e.target.value)}
+          />
+          <span aria-hidden>–</span>
+          <input
+            type="number"
+            inputMode="numeric"
+            min={0}
+            className="filter-price-input"
+            style={{ width: "100%", padding: "6px 8px", borderRadius: 6, border: "1px solid #d1d5db" }}
+            placeholder="Max"
+            aria-label="Maximum price"
+            value={maxPrice}
+            onChange={(e) => onMaxPrice(e.target.value)}
+          />
+        </div>
       </FilterGroup>
 
-      <FilterGroup title="Price" groupKey="price">
-        <p className="text-sm muted">
-          $0.00 – ${maxPrice.toFixed(2)}
-        </p>
-        <input
-          type="range"
-          className="range"
-          min={0}
-          max={priceCeiling}
-          value={maxPrice}
-          aria-label="Maximum price"
-          onChange={(e) => onMaxPrice(Number(e.target.value))}
-        />
+      <FilterGroup title="Gender" groupKey="gender">
+        {genders.map((g) => (
+          <label key={g} className="check">
+            <input type="checkbox" checked={activeGenders.includes(g)} onChange={() => onToggleGender(g)} />
+            {g}
+          </label>
+        ))}
       </FilterGroup>
 
       <FilterGroup title="Color" groupKey="color">
@@ -172,6 +195,17 @@ export function Filters({
             {size}
           </label>
         ))}
+      </FilterGroup>
+
+      <FilterGroup title="Availability" groupKey="availability">
+        <label className="check">
+          <input type="checkbox" checked={onSale} onChange={onToggleOnSale} />
+          On sale
+        </label>
+        <label className="check">
+          <input type="checkbox" checked={inStock} onChange={onToggleInStock} />
+          In stock only
+        </label>
       </FilterGroup>
     </aside>
   );

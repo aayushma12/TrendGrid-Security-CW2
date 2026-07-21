@@ -77,7 +77,7 @@ export const STORE = {
   address: "8502 Preston Rd. Inglewood, Maine 98380",
   email: "example@gmail.com",
   phone: "+0123-456-789",
-  freeShippingOver: 180,
+  freeShippingOver: 5000,
 };
 
 export const NAV_LINKS = [
@@ -98,7 +98,7 @@ export const CATEGORY_TILES = [
 ];
 
 export const FEATURES = [
-  { title: "Free Shipping", text: "Free shipping for order above $180", icon: "shipping" },
+  { title: "Free Shipping", text: "Free shipping for orders above Rs. 5,000", icon: "shipping" },
   { title: "Flexible Payment", text: "Multiple secure payment options", icon: "payment" },
   { title: "24x7 Support", text: "We support online all days.", icon: "support" },
 ];
@@ -119,7 +119,7 @@ export const BLOG_POSTS = [
 
 export const FAQS = [
   { q: "How can I place an order?", a: "Browse the shop, add items to your cart, then proceed to checkout and choose your preferred payment method. You'll receive an order confirmation by email." },
-  { q: "What payment methods do you accept?", a: "We accept PayPal, all major credit/debit cards, Google Pay and Cash on Delivery. All payments are processed over secure, encrypted connections." },
+  { q: "What payment methods do you accept?", a: "We accept eSewa and Cash on Delivery. All online payments are processed over secure, encrypted connections." },
   { q: "Can I track my order after it's been placed?", a: "Yes — once your order ships you'll receive a tracking number via email. You can also track it from My Account → Track Your Order." },
   { q: "Do you offer customer support?", a: "Our support team is available 24x7 via phone and email. Reach us any time and we'll be happy to help." },
   { q: "What is your return policy?", a: "Items can be returned within 30 days of delivery in their original condition. Refunds are issued to the original payment method." },
@@ -141,12 +141,24 @@ export const COLOR_SWATCHES: Record<string, string> = {
   Gold: "#C9A24B",
 };
 
-export const FILTER_COLORS = ["Black", "Grey", "Green", "Red", "Orange", "Blue", "Pink", "White"];
-export const FILTER_SIZES = ["S", "M", "L", "XL", "XXL", "XXXL"];
-export const FILTER_CATEGORIES = ["Men", "Women", "T-Shirts", "Handbags", "Jackets and Coats", "Watches", "Hat"];
+/**
+ * Mirrors the API's real seeded catalog vocabulary (prisma/seeds/attributes.ts
+ * COLORS/APPAREL_SIZES, and the Women/Men/Unisex gender values baked into
+ * seedCatalog.ts's product labels) — used by the /shop filter sidebar so the
+ * options offered actually exist in the real catalog instead of a disjoint
+ * demo list that would silently return zero results for every option.
+ */
+export const FILTER_COLORS = [
+  "Black", "White", "Navy", "Beige", "Olive", "Burgundy", "Blush Pink",
+  "Charcoal Grey", "Camel", "Ivory", "Mustard", "Emerald Green", "Rust Orange",
+  "Dusty Rose", "Sage Green", "Cobalt Blue", "Lavender", "Terracotta",
+  "Chocolate Brown", "Champagne Gold",
+];
+export const FILTER_SIZES = ["XS", "S", "M", "L", "XL", "XXL"];
+export const FILTER_GENDERS = ["Women", "Men", "Unisex"];
 
 export function formatPrice(n: number): string {
-  return `$${n.toFixed(2)}`;
+  return `Rs. ${n.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
 }
 
 /* ============================================================================

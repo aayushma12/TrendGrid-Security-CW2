@@ -54,7 +54,27 @@ export async function listCategories(params: ListCategoriesParams = {}) {
   q.set("sortOrder", params.sortOrder ?? "asc");
 
   const qs = q.toString();
-  return apiRequest<CategoryDto[]>(`/categories${qs ? `?${qs}` : ""}`, { auth: false });
+  return apiRequest<CategoryDto[]>(`/categories${qs ? `?${qs}` : ""}`);
+}
+
+/**
+ * The API caps `limit` at 100 (server-side, consistent across every list
+ * endpoint) — pages exceeding that are rejected with a 400, not silently
+ * truncated. For admin screens that render the whole category tree with no
+ * pager of their own, fetch every page instead of asking for one giant page.
+ * Capped at 20 pages (2000 categories) as a sanity backstop against a runaway loop.
+ */
+export async function listAllCategories(params: Omit<ListCategoriesParams, "page" | "limit"> = {}): Promise<CategoryDto[]> {
+  const PAGE_SIZE = 100;
+  const MAX_PAGES = 20;
+  const all: CategoryDto[] = [];
+  for (let page = 1; page <= MAX_PAGES; page++) {
+    const res = await listCategories({ ...params, page, limit: PAGE_SIZE });
+    all.push(...res.data);
+    const totalPages = res.meta?.totalPages ?? 1;
+    if (page >= totalPages) break;
+  }
+  return all;
 }
 
 export async function createCategory(input: CreateCategoryInput) {
@@ -95,4 +115,32 @@ export async function removeCategoryImage(id: string) {
 
 export async function deleteCategory(id: string) {
   await apiRequest<null>(`/categories/${id}`, { method: "DELETE" });
+}
+
+// -------- Bulk operations --------
+
+export interface CategoryBulkResult {
+  requested: number;
+  updated: number;
+  notFound: string[];
+}
+
+export async function bulkUpdateCategoryActive(ids: string[], isActive: boolean) {
+  return apiRequest<CategoryBulkResult>("/categories/bulk/active", {
+    method: "POST",
+    body: JSON.stringify({ ids, isActive }),
+  });
+}
+
+export interface CategoryBulkDeleteResult {
+  requested: number;
+  deleted: number;
+  failed: { id: string; reason: string }[];
+}
+
+export async function bulkDeleteCategories(ids: string[]) {
+  return apiRequest<CategoryBulkDeleteResult>("/categories/bulk/delete", {
+    method: "POST",
+    body: JSON.stringify({ ids }),
+  });
 }
