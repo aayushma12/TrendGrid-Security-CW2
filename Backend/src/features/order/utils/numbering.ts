@@ -7,7 +7,19 @@
  * environment swap to a dedicated sequence table for guaranteed uniqueness
  * under concurrent load.
  */
-import { PrismaClient, Prisma } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
+
+import type { prisma as prismaSingleton } from '../../../config/prisma';
+
+// The app's prisma singleton carries a client-level `omit` config (see
+// config/prisma.ts), which makes it a distinct generic PrismaClient
+// instantiation from the bare, un-parameterized `PrismaClient` type —
+// TypeScript treats them as structurally incompatible even though these
+// functions never touch the omitted field. Deriving the type from the
+// actual singleton (rather than referencing the bare class) keeps this
+// accepting exactly what callers actually pass: the real client or a
+// transaction handle.
+type PrismaClientOrTx = typeof prismaSingleton | Prisma.TransactionClient;
 
 const yyyymmdd = (d: Date): string =>
   `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, '0')}${String(d.getUTCDate()).padStart(2, '0')}`;
@@ -21,7 +33,7 @@ const endOfDayUTC = (d: Date): Date =>
 const pad = (n: number): string => String(n).padStart(6, '0');
 
 export const generateOrderNumber = async (
-  prisma: PrismaClient | Prisma.TransactionClient,
+  prisma: PrismaClientOrTx,
   now: Date = new Date(),
 ): Promise<string> => {
   const dayStart = startOfDayUTC(now);
@@ -33,7 +45,7 @@ export const generateOrderNumber = async (
 };
 
 export const generateInvoiceNumber = async (
-  prisma: PrismaClient | Prisma.TransactionClient,
+  prisma: PrismaClientOrTx,
   now: Date = new Date(),
 ): Promise<string> => {
   const dayStart = startOfDayUTC(now);
@@ -51,7 +63,7 @@ export const generateInvoiceNumber = async (
  * matching the "guaranteed uniqueness" note above for order/invoice numbers.
  */
 export const generateTrackingNumber = async (
-  prisma: PrismaClient | Prisma.TransactionClient,
+  prisma: PrismaClientOrTx,
 ): Promise<string> => {
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const candidate = `TRK${Math.floor(100000000 + Math.random() * 900000000)}`;
