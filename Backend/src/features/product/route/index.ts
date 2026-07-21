@@ -11,12 +11,16 @@ import { Router } from 'express';
 
 import { defineRoutes } from '../../../utils/defineRoute';
 import { memoryUploader } from '../../../config/cloudinary';
+import { optionalAuth } from '../../../middleware/auth';
 
 import { listReviewsQuerySchema } from '../../review/validator';
 import { listOrdersQuerySchema } from '../../order/validator';
 
 import {
   addVariantImagesController,
+  bulkDeleteController,
+  bulkUpdateActiveController,
+  bulkUpdateStatusController,
   createCharacteristicController,
   createProductController,
   createVariantController,
@@ -24,6 +28,7 @@ import {
   deleteProductController,
   deleteVariantController,
   getBestSellerProductsController,
+  getCatalogStatsController,
   getFeaturedProductsController,
   getNewProductsController,
   getTrendingProductsController,
@@ -31,6 +36,7 @@ import {
   getProductReviewSummaryController,
   getProductsController,
   getVariantController,
+  importProductsController,
   listCharacteristicsController,
   listProductOrdersController,
   listProductReviewsController,
@@ -47,10 +53,15 @@ import {
   uploadSlotImageController,
 } from '../controller';
 import {
+  bulkActiveSchema,
+  bulkDeleteSchema,
+  bulkStatusSchema,
+  catalogStatsQuerySchema,
   characteristicParamsSchema,
   createCharacteristicSchema,
   createVariantSchema,
   imageSlotParamsSchema,
+  importProductsQuerySchema,
   listProductsQuerySchema,
   productFlagParamsSchema,
   productIdParamsSchema,
@@ -63,18 +74,44 @@ import {
   variantParamsSchema,
 } from '../validator';
 import { VARIANT_IMAGES_MAX_FILES } from '../constants';
+import { csvUploader } from '../utils/csvUploader';
 
 const router = Router();
 
+// ── Admin: fixed-path routes ─────────────────────────────────────────────────
+// Registered before any `/:id`-shaped route below — Express matches routes in
+// registration order, so `/stats` or `/bulk/status` would otherwise be
+// swallowed by `GET /:id` / `PATCH /:id/status` with `id` capturing the literal
+// segment ("stats", "bulk").
+defineRoutes(router, [
+  { method: 'get', path: '/stats', auth: 'ADMIN',
+    schema: { query: catalogStatsQuerySchema }, handler: getCatalogStatsController },
+
+  { method: 'post', path: '/bulk/status', auth: 'ADMIN',
+    schema: { body: bulkStatusSchema }, handler: bulkUpdateStatusController },
+  { method: 'post', path: '/bulk/active', auth: 'ADMIN',
+    schema: { body: bulkActiveSchema }, handler: bulkUpdateActiveController },
+  { method: 'post', path: '/bulk/delete', auth: 'ADMIN',
+    schema: { body: bulkDeleteSchema }, handler: bulkDeleteController },
+
+  { method: 'post', path: '/import', auth: 'ADMIN',
+    schema: { query: importProductsQuerySchema },
+    middleware: [csvUploader().single('file')],
+    handler: importProductsController },
+]);
+
 // ── Public reads (storefront) ────────────────────────────────────────────────
 defineRoutes(router, [
-  { method: 'get', path: '/', auth: 'public', schema: { query: listProductsQuerySchema }, handler: getProductsController },
+  // optionalAuth: an ADMIN caller (the admin console reuses this same route to
+  // manage the catalog) sees every status; anonymous/customer callers are
+  // silently restricted to PUBLISHED + active — see getProductsController.
+  { method: 'get', path: '/', auth: 'public', preAuth: [optionalAuth], schema: { query: listProductsQuerySchema }, handler: getProductsController },
   { method: 'get', path: '/featured', auth: 'public', schema: { query: listProductsQuerySchema }, handler: getFeaturedProductsController },
   { method: 'get', path: '/new', auth: 'public', schema: { query: listProductsQuerySchema }, handler: getNewProductsController },
   { method: 'get', path: '/best-sellers', auth: 'public', schema: { query: listProductsQuerySchema }, handler: getBestSellerProductsController },
   { method: 'get', path: '/trending', auth: 'public', schema: { query: listProductsQuerySchema }, handler: getTrendingProductsController },
   { method: 'get', path: '/search', auth: 'public', schema: { query: listProductsQuerySchema }, handler: searchProductsController },
-  { method: 'get', path: '/:id', auth: 'public', schema: { params: productIdParamsSchema },  handler: getProductController },
+  { method: 'get', path: '/:id', auth: 'public', preAuth: [optionalAuth], schema: { params: productIdParamsSchema },  handler: getProductController },
   { method: 'get', path: '/:id/reviews', auth: 'public',
     schema: { params: productIdParamsSchema, query: listReviewsQuerySchema }, handler: listProductReviewsController },
   { method: 'get', path: '/:id/reviews/summary', auth: 'public',

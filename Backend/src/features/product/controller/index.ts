@@ -3,10 +3,11 @@
  * returns via the standard response builder.
  */
 import { Request, Response } from 'express';
+import { parse as parseCsv } from 'csv-parse/sync';
 
 import { created, noContent, paginated, success } from '../../../utils/response';
 import { parseQueryOptions } from '../../../utils/queryOptions';
-import { BadRequestError } from '../../../utils/errors';
+import { BadRequestError, NotFoundError } from '../../../utils/errors';
 import { QueryOptions } from '../../../types';
 
 
@@ -48,8 +49,16 @@ export const createProductController = async (req: Request, res: Response): Prom
   created(res, product, PRODUCT_MESSAGES.CREATED);
 };
 
+const isAdminCaller = (req: Request): boolean => req.user?.role === 'ADMIN';
+
 export const getProductController = async (req: Request, res: Response): Promise<void> => {
   const product = await productService.getProductById(req.params.id);
+  // Anonymous/customer callers never see a draft/archived or deactivated
+  // product, even by guessing its id — only the admin console (which reuses
+  // this same public route to preview in-progress products) gets the full view.
+  if (!isAdminCaller(req) && (product.status !== 'PUBLISHED' || !product.isActive)) {
+    throw new NotFoundError(PRODUCT_MESSAGES.NOT_FOUND);
+  }
   success(res, product, PRODUCT_MESSAGES.RETRIEVED);
 };
 
@@ -58,6 +67,14 @@ export const getProductsController = async (req: Request, res: Response): Promis
     allowedSortFields: [...PRODUCT_SORT_FIELDS],
     allowedFilters: [...PRODUCT_FILTER_FIELDS],
   });
+  // Same shared route for the admin console and the storefront — force
+  // PUBLISHED + active for everyone except an authenticated admin, so a
+  // draft product never leaks to shoppers just because no page happens to
+  // filter for it.
+  if (!isAdminCaller(req)) {
+    options.filters.status = 'PUBLISHED';
+    options.filters.isActive = true;
+  }
   const { items, meta } = await productService.getProducts(options);
   paginated(res, items, meta, PRODUCT_MESSAGES.LISTED);
 };
@@ -271,4 +288,50 @@ export const listProductOrdersController = async (req: Request, res: Response): 
     ...options, from, to,
   });
   paginated(res, items, meta, 'Product orders retrieved successfully.');
+};
+
+// -------- Bulk operations --------
+
+export const bulkUpdateStatusController = async (req: Request, res: Response): Promise<void> => {
+  const result = await productService.bulkUpdateStatus(req.body.ids, req.body.status);
+  success(res, result, PRODUCT_MESSAGES.BULK_STATUS_UPDATED);
+};
+
+export const bulkUpdateActiveController = async (req: Request, res: Response): Promise<void> => {
+  const result = await productService.bulkUpdateActive(req.body.ids, req.body.isActive);
+  success(res, result, PRODUCT_MESSAGES.BULK_ACTIVE_UPDATED);
+};
+
+export const bulkDeleteController = async (req: Request, res: Response): Promise<void> => {
+  const result = await productService.bulkDeleteProducts(req.body.ids);
+  success(res, result, PRODUCT_MESSAGES.BULK_DELETED);
+};
+
+// -------- CSV import --------
+
+export const importProductsController = async (req: Request, res: Response): Promise<void> => {
+  if (!req.file?.buffer) throw new BadRequestError(PRODUCT_MESSAGES.IMPORT_FILE_REQUIRED);
+
+  let rows: Record<string, string>[];
+  try {
+    rows = parseCsv(req.file.buffer, { columns: true, skip_empty_lines: true, trim: true });
+  } catch (err) {
+    throw new BadRequestError(`Could not parse CSV file: ${(err as Error).message}`);
+  }
+
+  // The query validator (importProductsQuerySchema) already coerces this to a
+  // real boolean before the controller runs — re-checking for the string
+  // 'true' here would always be false post-transform and silently defeat dryRun.
+  const dryRun = Boolean(req.query.dryRun);
+  const summary = await productService.importProductsFromCsv(rows, dryRun);
+  success(res, summary, PRODUCT_MESSAGES.IMPORT_COMPLETE);
+};
+
+// -------- Catalog statistics --------
+
+export const getCatalogStatsController = async (req: Request, res: Response): Promise<void> => {
+  const recentDays = req.query.recentDays ? Number(req.query.recentDays) : 30;
+  const lowStockThreshold = req.query.lowStockThreshold ? Number(req.query.lowStockThreshold) : 10;
+  const stats = await productService.getCatalogStats(recentDays, lowStockThreshold);
+  success(res, stats, PRODUCT_MESSAGES.STATS_RETRIEVED);
 };

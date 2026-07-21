@@ -24,7 +24,25 @@ export const PRODUCT_FILTER_FIELDS = [
   'categoryId', 'brand', 'status', 'priceMin', 'priceMax',
   'isActive', 'isFeatured', 'isRecommended',
   'isTrending', 'isBestSeller', 'isNewArrival',
+  // "Array contains (any of)" filters against tags/labels/collections/sizes —
+  // each accepts either one value (tag=Formal) or several via a repeated key
+  // (color=Red&color=Blue). `label` also doubles as the gender filter, since
+  // gender is seeded into the same free-text labels array (see seedCatalog.ts)
+  // rather than a dedicated column. See repository/product.ts findMany.
+  'tag', 'label', 'collection', 'color', 'size',
+  // Boolean convenience filters — onSale: discountPrice is set; inStock: has
+  // at least one active variant with stock > 0.
+  'onSale', 'inStock',
+  // Admin-curated Collection entity membership (distinct from the free-text
+  // `collection` filter above) — e.g. curatedCollectionId=<uuid for "Men">.
+  'curatedCollectionId',
 ] as const;
+
+/** Max ids accepted in one bulk request — keeps a single call boundable. */
+export const BULK_MAX_IDS = 500;
+
+/** Max rows accepted in one CSV import — keeps a single request boundable. */
+export const CSV_IMPORT_MAX_ROWS = 1000;
 
 export const PRODUCT_THUMBNAIL_SUBFOLDER = 'products/images';
 export const PRODUCT_VARIANT_SUBFOLDER = 'products/variants';
@@ -79,6 +97,17 @@ export const PRODUCT_MESSAGES = {
   NOT_FOUND: 'Product not found.',
   CATEGORY_NOT_FOUND: 'Category not found.',
   INVALID_FLAG: 'Invalid flag name.',
+
+  BULK_STATUS_UPDATED: 'Products updated successfully.',
+  BULK_ACTIVE_UPDATED: 'Products updated successfully.',
+  BULK_DELETED: 'Products deleted successfully.',
+
+  IMPORT_COMPLETE: 'CSV import complete.',
+  IMPORT_FILE_REQUIRED: 'CSV file is required (field: "file").',
+  IMPORT_EMPTY: 'The CSV file has no data rows.',
+  IMPORT_TOO_MANY_ROWS: 'The CSV file has too many rows for a single import.',
+
+  STATS_RETRIEVED: 'Catalog statistics retrieved successfully.',
 } as const;
 
 export const VARIANT_IMAGES_MAX_FILES = 10;

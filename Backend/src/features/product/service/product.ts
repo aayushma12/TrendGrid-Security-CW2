@@ -6,6 +6,7 @@ import { deleteImage, replaceImage } from '../../../services/imageService';
 
 import * as reviewService from '../../review/service';
 import * as orderService from '../../order/service';
+import * as categoryRepo from '../../category/repository';
 
 import * as productRepo from '../repository/product';
 import * as variantRepo from '../repository/variant';
@@ -15,15 +16,19 @@ import {
 } from '../dto';
 import {
   BEST_SELLER_WINDOW_DAYS,
+  CSV_IMPORT_MAX_ROWS,
   DEFAULT_CURRENCY,
   NEW_ARRIVAL_WINDOW_DAYS,
   PRODUCT_MESSAGES,
   PRODUCT_THUMBNAIL_SUBFOLDER,
+  ProductStatusValue,
   ProductToggleFlag,
   STOREFRONT_STRIP_LIMIT,
   TRENDING_WINDOW_DAYS,
 } from '../constants';
 import { ProductWithRelations } from '../types';
+import { importRowSchema } from '../validator';
+import { CatalogStats } from '../repository/product';
 
 // ------------- helpers -------------
 
@@ -85,7 +90,18 @@ export const getProductById = async (id: string): Promise<ProductResponseDto> =>
 export const getProducts = async (
   options: QueryOptions,
 ): Promise<{ items: ProductResponseDto[]; meta: PaginationMeta }> => {
-  const { items, total } = await productRepo.findMany(options);
+  // Expand a categoryId filter to include its subcategories — every product
+  // is assigned to a leaf subcategory, never a parent, so without this a
+  // parent/top-level category filter always matches nothing. See
+  // category/repository/index.ts's getDescendantIds for why.
+  let { filters } = options;
+  const categoryId = filters.categoryId;
+  if (typeof categoryId === 'string') {
+    const descendantIds = await categoryRepo.getDescendantIds(categoryId);
+    filters = { ...filters, categoryId: descendantIds };
+  }
+
+  const { items, total } = await productRepo.findMany({ ...options, filters });
   return {
     items: items.map(toProductResponseDto),
     meta: buildPaginationMeta(total, options.page, options.limit),
@@ -228,6 +244,161 @@ export const setProductImage = async (id: string, buffer: Buffer): Promise<Produ
 export const removeProductImage = async (id: string): Promise<ProductResponseDto> =>
   removeProductSlotImage(id, 'thumbnail');
 
+// ------------- Bulk operations -------------
+
+export interface BulkResult {
+  requested: number;
+  updated: number;
+  notFound: string[];
+}
+
+const partitionIds = async (ids: string[]): Promise<{ existing: string[]; notFound: string[] }> => {
+  const existing = await productRepo.findExistingIds(ids);
+  const existingSet = new Set(existing);
+  return { existing, notFound: ids.filter((id) => !existingSet.has(id)) };
+};
+
+export const bulkUpdateStatus = async (ids: string[], status: ProductStatusValue): Promise<BulkResult> => {
+  const { existing, notFound } = await partitionIds(ids);
+  const updated = existing.length > 0 ? await productRepo.bulkUpdateStatus(existing, status) : 0;
+  logger.info(`Bulk product status update: ${updated}/${ids.length} to ${status}`);
+  return { requested: ids.length, updated, notFound };
+};
+
+export const bulkUpdateActive = async (ids: string[], isActive: boolean): Promise<BulkResult> => {
+  const { existing, notFound } = await partitionIds(ids);
+  const updated = existing.length > 0 ? await productRepo.bulkUpdateActive(existing, isActive) : 0;
+  logger.info(`Bulk product active update: ${updated}/${ids.length} to isActive=${isActive}`);
+  return { requested: ids.length, updated, notFound };
+};
+
+export const bulkDeleteProducts = async (ids: string[]): Promise<BulkResult> => {
+  const { existing, notFound } = await partitionIds(ids);
+  if (existing.length === 0) return { requested: ids.length, updated: 0, notFound };
+
+  // Best-effort cleanup of Cloudinary assets, same principle as the single-delete path.
+  const publicIds = await productRepo.listImagePublicIdsForProducts(existing);
+  const deleted = await productRepo.bulkDelete(existing);
+  await Promise.all(publicIds.map((pid) => deleteImage(pid)));
+
+  logger.info(`Bulk product delete: ${deleted}/${ids.length} removed, cleanupImages=${publicIds.length}`);
+  return { requested: ids.length, updated: deleted, notFound };
+};
+
+// ------------- CSV import -------------
+
+export interface ImportRowResult {
+  row: number;
+  name?: string;
+  status: 'created' | 'skipped_duplicate' | 'error';
+  message?: string;
+}
+
+export interface ImportSummary {
+  totalRows: number;
+  created: number;
+  skipped: number;
+  errors: number;
+  dryRun: boolean;
+  results: ImportRowResult[];
+}
+
+const splitList = (value: string | undefined): string[] =>
+  value ? value.split(',').map((v) => v.trim()).filter(Boolean) : [];
+
+/**
+ * Imports products from parsed CSV rows (each already a plain object keyed
+ * by header — see controller for the actual file parsing). Every row is
+ * independently validated/sanitized; one bad row doesn't abort the batch —
+ * it's reported and the rest continue. Duplicate names (case-insensitive,
+ * checked against the whole catalog once up front) are skipped, never
+ * overwritten, matching seedCatalog.ts's own idempotency rule.
+ */
+export const importProductsFromCsv = async (
+  rawRows: Record<string, string>[],
+  dryRun: boolean,
+): Promise<ImportSummary> => {
+  if (rawRows.length === 0) throw new BadRequestError(PRODUCT_MESSAGES.IMPORT_EMPTY);
+  if (rawRows.length > CSV_IMPORT_MAX_ROWS) throw new BadRequestError(PRODUCT_MESSAGES.IMPORT_TOO_MANY_ROWS);
+
+  const existingNames = await productRepo.findAllProductNamesLower();
+  const categoryIdCache = new Map<string, string | null>();
+  const results: ImportRowResult[] = [];
+  let created = 0;
+  let skipped = 0;
+  let errors = 0;
+
+  for (let i = 0; i < rawRows.length; i++) {
+    const rowNumber = i + 2; // +1 for 0-index, +1 for the header row
+    const raw = rawRows[i];
+
+    const parsed = importRowSchema.safeParse(raw);
+    if (!parsed.success) {
+      errors++;
+      results.push({
+        row: rowNumber,
+        status: 'error',
+        message: parsed.error.errors.map((e) => `${e.path.join('.')}: ${e.message}`).join('; '),
+      });
+      continue;
+    }
+    const row = parsed.data;
+
+    if (existingNames.has(row.name.toLowerCase())) {
+      skipped++;
+      results.push({ row: rowNumber, name: row.name, status: 'skipped_duplicate', message: 'A product with this name already exists.' });
+      continue;
+    }
+
+    let categoryId = categoryIdCache.get(row.categoryName.toLowerCase());
+    if (categoryId === undefined) {
+      // eslint-disable-next-line no-await-in-loop
+      categoryId = await productRepo.findCategoryIdByName(row.categoryName);
+      categoryIdCache.set(row.categoryName.toLowerCase(), categoryId);
+    }
+    if (!categoryId) {
+      errors++;
+      results.push({ row: rowNumber, name: row.name, status: 'error', message: `Category "${row.categoryName}" not found.` });
+      continue;
+    }
+
+    if (!dryRun) {
+      // eslint-disable-next-line no-await-in-loop
+      await productRepo.create({
+        name: row.name,
+        description: row.description || null,
+        shortDescription: row.shortDescription || null,
+        basePrice: Number(row.basePrice),
+        discountPrice: row.discountPrice ? Number(row.discountPrice) : null,
+        currency: row.currency || DEFAULT_CURRENCY,
+        categoryId,
+        brand: row.brand || null,
+        status: 'DRAFT',
+        isActive: true,
+        isFeatured: false,
+        isRecommended: false,
+        isTrending: false,
+        isBestSeller: false,
+        isNewArrival: false,
+        sizes: splitList(row.sizes),
+        tags: splitList(row.tags),
+        labels: splitList(row.labels),
+        collections: splitList(row.collections),
+      });
+    }
+    existingNames.add(row.name.toLowerCase());
+    created++;
+    results.push({ row: rowNumber, name: row.name, status: 'created' });
+  }
+
+  logger.info(`CSV import (dryRun=${dryRun}): ${created} created, ${skipped} skipped, ${errors} errors, ${rawRows.length} rows total`);
+  return { totalRows: rawRows.length, created, skipped, errors, dryRun, results };
+};
+
+// ------------- Catalog statistics -------------
+
+export const getCatalogStats = async (recentDays: number, lowStockThreshold: number): Promise<CatalogStats> =>
+  productRepo.getCatalogStats(recentDays, lowStockThreshold);
 
 // ------------- Helper: enforce product exists (used by sub-resource services) -------------
 

@@ -246,6 +246,106 @@ export const remove = async (id: string): Promise<Product | null> => {
   }
 };
 
+// ------------- Bulk operations -------------
+//
+// Bulk endpoints operate on ids the caller already has (e.g. selected rows in
+// the admin table) — there's no need to fetch full relations back, so these
+// use Prisma's own bulk `updateMany`/`findMany`+`deleteMany` rather than N
+// individual round trips through `update`/`remove`.
+
+/** Returns only the ids that actually exist, in the same order-independent set — lets the
+ *  service report which requested ids were skipped instead of silently no-oping on them. */
+export const findExistingIds = async (ids: string[]): Promise<string[]> => {
+  const rows = await prisma.product.findMany({ where: { id: { in: ids } }, select: { id: true } });
+  return rows.map((r) => r.id);
+};
+
+export const bulkUpdateStatus = async (ids: string[], status: ProductStatusValue): Promise<number> => {
+  const { count } = await prisma.product.updateMany({ where: { id: { in: ids } }, data: { status } });
+  return count;
+};
+
+export const bulkUpdateActive = async (ids: string[], isActive: boolean): Promise<number> => {
+  const { count } = await prisma.product.updateMany({ where: { id: { in: ids } }, data: { isActive } });
+  return count;
+};
+
+/** Cloudinary public ids for every image (product slots + variant gallery)
+ *  across a set of products — the service uses this for cleanup before the
+ *  bulk delete, same as the single-product delete path. */
+export const listImagePublicIdsForProducts = async (ids: string[]): Promise<string[]> => {
+  const products = await prisma.product.findMany({
+    where: { id: { in: ids } },
+    select: {
+      imagePublicId: true, extraImage1PublicId: true, extraImage2PublicId: true, extraImage3PublicId: true,
+      variants: { select: { images: { select: { imagePublicId: true } } } },
+    },
+  });
+  const publicIds: string[] = [];
+  for (const p of products) {
+    for (const pid of [p.imagePublicId, p.extraImage1PublicId, p.extraImage2PublicId, p.extraImage3PublicId]) {
+      if (pid) publicIds.push(pid);
+    }
+    for (const v of p.variants) {
+      for (const img of v.images) publicIds.push(img.imagePublicId);
+    }
+  }
+  return publicIds;
+};
+
+export const bulkDelete = async (ids: string[]): Promise<number> => {
+  const { count } = await prisma.product.deleteMany({ where: { id: { in: ids } } });
+  return count;
+};
+
+// ------------- Catalog statistics -------------
+
+export interface CatalogStats {
+  totalProducts: number;
+  activeProducts: number;
+  inactiveProducts: number;
+  draftProducts: number;
+  publishedProducts: number;
+  archivedProducts: number;
+  recentlyAdded: number;
+  lowStockVariants: number;
+  productsPerCategory: { categoryId: string; categoryName: string; count: number }[];
+}
+
+export const getCatalogStats = async (recentDays: number, lowStockThreshold: number): Promise<CatalogStats> => {
+  const since = new Date(Date.now() - recentDays * 24 * 60 * 60 * 1000);
+
+  const [
+    totalProducts, activeProducts, inactiveProducts,
+    draftProducts, publishedProducts, archivedProducts,
+    recentlyAdded, lowStockVariants, categoryCounts,
+  ] = await prisma.$transaction([
+    prisma.product.count(),
+    prisma.product.count({ where: { isActive: true } }),
+    prisma.product.count({ where: { isActive: false } }),
+    prisma.product.count({ where: { status: 'DRAFT' } }),
+    prisma.product.count({ where: { status: 'PUBLISHED' } }),
+    prisma.product.count({ where: { status: 'ARCHIVED' } }),
+    prisma.product.count({ where: { createdAt: { gte: since } } }),
+    prisma.productVariant.count({
+      where: { isActive: true, lowStockThreshold: { not: null }, stock: { lte: lowStockThreshold } },
+    }),
+    prisma.category.findMany({
+      select: { id: true, name: true, _count: { select: { products: true } } },
+      orderBy: { name: 'asc' },
+    }),
+  ]);
+
+  return {
+    totalProducts, activeProducts, inactiveProducts,
+    draftProducts, publishedProducts, archivedProducts,
+    recentlyAdded, lowStockVariants,
+    productsPerCategory: categoryCounts
+      .filter((c) => c._count.products > 0)
+      .map((c) => ({ categoryId: c.id, categoryName: c.name, count: c._count.products })),
+  };
+};
+
 export const updateAssignments = async (
   id: string,
   patch: {
@@ -277,14 +377,26 @@ export const updateAssignments = async (
 
 // ------------- Listing -------------
 
+/** A filter value that's either a single string or several (repeated query key) — normalizes to an array, or undefined if absent/wrong type. */
+const asStringArray = (v: unknown): string[] | undefined => {
+  if (typeof v === 'string') return [v];
+  if (Array.isArray(v) && v.every((x) => typeof x === 'string')) return v as string[];
+  return undefined;
+};
+
 export const findMany = async (
   options: QueryOptions,
 ): Promise<{ items: ProductWithRelations[]; total: number }> => {
   const where: Prisma.ProductWhereInput = {};
 
   const f = options.filters;
-  if (typeof f.categoryId === 'string') where.categoryId = f.categoryId;
-  if (typeof f.brand === 'string') where.brand = f.brand;
+
+  const categoryIds = asStringArray(f.categoryId);
+  if (categoryIds?.length) where.categoryId = categoryIds.length === 1 ? categoryIds[0] : { in: categoryIds };
+
+  const brands = asStringArray(f.brand);
+  if (brands?.length) where.brand = brands.length === 1 ? brands[0] : { in: brands };
+
   if (typeof f.status === 'string') where.status = f.status as ProductStatusValue;
   if (typeof f.isActive === 'boolean') where.isActive = f.isActive;
   if (typeof f.isFeatured === 'boolean') where.isFeatured = f.isFeatured;
@@ -292,6 +404,7 @@ export const findMany = async (
   if (typeof f.isTrending === 'boolean') where.isTrending = f.isTrending;
   if (typeof f.isBestSeller === 'boolean') where.isBestSeller = f.isBestSeller;
   if (typeof f.isNewArrival === 'boolean') where.isNewArrival = f.isNewArrival;
+  if (f.onSale === true) where.discountPrice = { not: null };
 
   if (typeof f.priceMin === 'number' || typeof f.priceMax === 'number') {
     where.basePrice = {
@@ -299,6 +412,38 @@ export const findMany = async (
       ...(typeof f.priceMax === 'number' ? { lte: new Prisma.Decimal(f.priceMax) } : {}),
     };
   }
+
+  // Season/occasion/style/weather/dress-code/gender live as free-form entries
+  // in these String[] columns rather than dedicated fields (see
+  // seedCatalog.ts) — `hasSome` is Prisma's native "array contains any of
+  // these values" operator, so a multi-select filter (or the gender filter,
+  // which reuses `label`) stays a single indexed-ish where clause rather
+  // than an app-side scan.
+  const tags = asStringArray(f.tag);
+  if (tags?.length) where.tags = { hasSome: tags };
+  const labels = asStringArray(f.label);
+  if (labels?.length) where.labels = { hasSome: labels };
+  const collections = asStringArray(f.collection);
+  if (collections?.length) where.collections = { hasSome: collections };
+  const sizes = asStringArray(f.size);
+  if (sizes?.length) where.sizes = { hasSome: sizes };
+
+  if (typeof f.curatedCollectionId === 'string') {
+    where.curatedCollections = { some: { id: f.curatedCollectionId } };
+  }
+
+  // Color and stock are sellable-variant attributes, not Product-level
+  // columns — filtered through the relation rather than the display-only
+  // `colors` Json field. Combined into one `some` so "in stock AND (Red or
+  // Blue)" requires a single variant matching both, not two different ones.
+  const colors = asStringArray(f.color);
+  const variantWhere: Prisma.ProductVariantWhereInput = {};
+  if (colors?.length) variantWhere.color = { in: colors, mode: 'insensitive' };
+  if (f.inStock === true) {
+    variantWhere.stock = { gt: 0 };
+    variantWhere.isActive = true;
+  }
+  if (Object.keys(variantWhere).length > 0) where.variants = { some: variantWhere };
 
   if (options.search) {
     where.OR = [
@@ -324,6 +469,23 @@ export const findMany = async (
 
 export const categoryExists = async (id: string): Promise<boolean> =>
   Boolean(await prisma.category.findUnique({ where: { id }, select: { id: true } }));
+
+/** Case-insensitive category lookup by name — CSV import identifies the
+ *  category/subcategory by name rather than requiring the admin to know its UUID. */
+export const findCategoryIdByName = async (name: string): Promise<string | null> => {
+  const row = await prisma.category.findFirst({
+    where: { name: { equals: name, mode: 'insensitive' } },
+    select: { id: true },
+  });
+  return row?.id ?? null;
+};
+
+/** All existing product names, lowercased — used by CSV import (and available
+ *  for any other bulk-insert path) to detect duplicates without a query per row. */
+export const findAllProductNamesLower = async (): Promise<Set<string>> => {
+  const rows = await prisma.product.findMany({ select: { name: true } });
+  return new Set(rows.map((r) => r.name.toLowerCase()));
+};
 
 
 
