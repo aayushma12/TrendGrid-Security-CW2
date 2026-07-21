@@ -22,7 +22,7 @@ export default function FontChecker() {
             const ff = new FontFace("Handel-verify-" + f.weight + f.style, `url(${f.url}) format("woff2")`, {
               weight: f.weight,
               style: f.style,
-            } as any);
+            } satisfies FontFaceDescriptors);
 
             // Use a short timeout so a slow network doesn't block startup.
             await Promise.race([ff.load(), timeout(3000)]);
@@ -30,10 +30,10 @@ export default function FontChecker() {
             // If loaded, add to document.fonts so the browser can use it later.
             try {
               document.fonts.add(ff);
-            } catch (e) {
+            } catch {
               // ignore — some browsers may throw when adding duplicate faces
             }
-          } catch (err) {
+          } catch {
             missing.push(f.url);
           }
         }),

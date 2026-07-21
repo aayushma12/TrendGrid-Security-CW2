@@ -12,6 +12,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { useStore } from "@/lib/store-context";
+import { resolveImage } from "@/lib/fashion-images";
 
 interface SearchProduct {
   id: string;
@@ -19,7 +20,12 @@ interface SearchProduct {
   name: string;
   category: string;
   price: string;
-  thumb: string;
+  thumb: string | null;
+}
+
+interface SearchCategory {
+  id: string;
+  name: string;
 }
 
 export function SearchOverlay() {
@@ -30,7 +36,7 @@ export function SearchOverlay() {
 
   const [query, setQuery] = useState("");
   const [products, setProducts] = useState<SearchProduct[]>([]);
-  const [categories, setCategories] = useState<string[]>([]);
+  const [categories, setCategories] = useState<SearchCategory[]>([]);
   const [loading, setLoading] = useState(false);
   const [focused, setFocused] = useState(-1);
   const [searched, setSearched] = useState(false);
@@ -155,15 +161,15 @@ export function SearchOverlay() {
               <p className="search-result-group-title">Categories</p>
               {categories.map((c) => (
                 <button
-                  key={c}
+                  key={c.id}
                   type="button"
                   className="search-result-item"
                   onClick={() => {
                     closeSearch();
-                    router.push(`/shop?category=${encodeURIComponent(c)}`);
+                    router.push(`/shop?category=${encodeURIComponent(c.id)}`);
                   }}
                 >
-                  <span style={{ flex: 1, fontWeight: 600, fontSize: ".9rem" }}>{c}</span>
+                  <span style={{ flex: 1, fontWeight: 600, fontSize: ".9rem" }}>{c.name}</span>
                 </button>
               ))}
             </>
@@ -185,7 +191,7 @@ export function SearchOverlay() {
                   }}
                 >
                   <div className="pimg" style={{ width: 52, height: 64, borderRadius: 8, flexShrink: 0, overflow: "hidden" }}>
-                    <Image src={p.thumb} alt={p.name} width={52} height={64} style={{ objectFit: "cover", width: "100%", height: "100%" }} />
+                    <Image src={resolveImage(p.thumb, p.name, 104, 128)} alt={p.name} width={52} height={64} style={{ objectFit: "cover", width: "100%", height: "100%" }} />
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <p style={{ fontWeight: 600, fontSize: ".9rem", margin: 0 }}>{p.name}</p>

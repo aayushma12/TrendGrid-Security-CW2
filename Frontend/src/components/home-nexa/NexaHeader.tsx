@@ -19,8 +19,8 @@ const THEME_KEY = "ndh.nxtheme";
 
 const DEFAULT_NAV = [
   { label: "Home", href: "/" },
-  { label: "Collections", href: "/shop" },
-  { label: "Brand", href: "/shop" },
+  { label: "Shop", href: "/shop" },
+  { label: "Collections", href: "/collections" },
   { label: "Contact", href: "/contact" },
 ];
 

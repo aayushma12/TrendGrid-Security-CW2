@@ -43,7 +43,7 @@ export default function CartPage() {
           ) : !isAuthenticated ? (
             <div className="nx-empty">
               <strong>Sign in to view your cart</strong>
-              Your cart is saved to your account so it's there whenever you come back.
+              Your cart is saved to your account so it&apos;s there whenever you come back.
               <div style={{ marginTop: 20 }}>
                 <Link href="/login?redirect=/cart" className="nx-btn nx-btn-accent">
                   Sign in

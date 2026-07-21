@@ -26,7 +26,7 @@ const DEFAULT_FAQS = [
   },
   {
     q: "Which payment methods do you support?",
-    a: "We accept all major credit and debit cards, PayPal, and popular digital wallets. All payments are processed over encrypted connections.",
+    a: "We accept eSewa and Cash on Delivery. All online payments are processed over encrypted connections.",
   },
 ];
 

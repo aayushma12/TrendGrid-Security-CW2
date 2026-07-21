@@ -46,7 +46,7 @@ const items: LookItem[] = [
 const LOOK_IMAGE =
   "https://images.unsplash.com/photo-1567401893414-76b7b1e5a7a5?w=1100&h=1100&fit=crop&auto=format&q=72";
 
-const money = (n: number) => `$${n.toFixed(2)}`;
+const money = (n: number) => `Rs. ${n.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
 
 /* ------------------------------------------------------- ClothingItem marker */
 

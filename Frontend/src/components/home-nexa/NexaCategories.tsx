@@ -1,28 +1,24 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { type Category } from "@/lib/shop-data";
 import { EASE, FadeUp } from "./motion";
 import { NexaProductCard } from "./NexaProductCard";
 import { listProducts } from "@/lib/api/products";
+import { listActiveCollections, listCollectionProducts } from "@/lib/api/collections";
+import type { CollectionDto } from "@/lib/api/collections";
 import type { ProductDto } from "@/lib/api/types";
 import { useHomepageSection } from "@/lib/homepage-context";
 import { fieldValue } from "@/lib/homepage-helpers";
 
-const TABS: Array<{ label: string; category: Category | "All" }> = [
-  { label: "All Styles", category: "All" },
-  { label: "Coats", category: "Coats" },
-  { label: "Dresses", category: "Dresses" },
-  { label: "Shirts", category: "Shirt" },
-  { label: "Sweaters", category: "Sweater" },
-  { label: "Accessories", category: "Accessories" },
-];
-
-/** Category filter + shoppable product grid with layout-animated switches. */
+/** Category filter + shoppable product grid with layout-animated switches.
+ *  Tabs are the real, admin-curated Collections (Men, Summer Collection, ...)
+ *  — not static labels — so what shoppers see always matches what the admin
+ *  has actually configured. */
 export function NexaCategories() {
-  const [active, setActive] = useState<Category | "All">("All");
+  const [collections, setCollections] = useState<CollectionDto[]>([]);
+  const [active, setActive] = useState<string | "all">("all");
   const [products, setProducts] = useState<ProductDto[]>([]);
   const { content, visible } = useHomepageSection("sec_categories");
   const heading = fieldValue(content, "heading", "Shape Your Signature Style");
@@ -32,13 +28,29 @@ export function NexaCategories() {
     "Browse fashion categories and explore outfits that match your personality, suit every moment, and upgrade your everyday look.",
   );
 
-  // Note: the tab labels below are static (not backed by real category ids),
-  // so this section shows active products and doesn't filter by tab yet.
   useEffect(() => {
-    void listProducts({ isActive: true, limit: 4 })
-      .then((res) => setProducts(res.data))
-      .catch(() => setProducts([]));
+    void listActiveCollections()
+      .then((res) => setCollections(res.data.slice(0, 5)))
+      .catch(() => setCollections([]));
+  }, []);
+
+  const loadProducts = useCallback(async () => {
+    try {
+      if (active === "all") {
+        const res = await listProducts({ isActive: true, limit: 4 });
+        setProducts(res.data);
+      } else {
+        const res = await listCollectionProducts(active, { limit: 4 });
+        setProducts(res.data.products);
+      }
+    } catch {
+      setProducts([]);
+    }
   }, [active]);
+
+  useEffect(() => {
+    void loadProducts();
+  }, [loadProducts]);
 
   if (!visible) return null;
 
@@ -54,24 +66,30 @@ export function NexaCategories() {
         </FadeUp>
 
         <FadeUp delay={0.08}>
-          <div className="nx-pills" role="tablist" aria-label="Product categories">
-            {TABS.map((t) => (
+          <div className="nx-pills" role="tablist" aria-label="Product collections">
+            <button
+              role="tab"
+              aria-selected={active === "all"}
+              className={`nx-pill${active === "all" ? " is-active" : ""}`}
+              onClick={() => setActive("all")}
+            >
+              {active === "all" && (
+                <motion.span className="nx-pill-bg" layoutId="nx-pill-bg" transition={{ type: "spring", stiffness: 420, damping: 34 }} aria-hidden />
+              )}
+              <span className="nx-pill-label">All Styles</span>
+            </button>
+            {collections.map((c) => (
               <button
-                key={t.label}
+                key={c.id}
                 role="tab"
-                aria-selected={active === t.category}
-                className={`nx-pill${active === t.category ? " is-active" : ""}`}
-                onClick={() => setActive(t.category)}
+                aria-selected={active === c.id}
+                className={`nx-pill${active === c.id ? " is-active" : ""}`}
+                onClick={() => setActive(c.id)}
               >
-                {active === t.category && (
-                  <motion.span
-                    className="nx-pill-bg"
-                    layoutId="nx-pill-bg"
-                    transition={{ type: "spring", stiffness: 420, damping: 34 }}
-                    aria-hidden
-                  />
+                {active === c.id && (
+                  <motion.span className="nx-pill-bg" layoutId="nx-pill-bg" transition={{ type: "spring", stiffness: 420, damping: 34 }} aria-hidden />
                 )}
-                <span className="nx-pill-label">{t.label}</span>
+                <span className="nx-pill-label">{c.name}</span>
               </button>
             ))}
           </div>
@@ -97,7 +115,7 @@ export function NexaCategories() {
 
         <FadeUp delay={0.1}>
           <div className="nx-cat-more">
-            <Link href="/shop" className="nx-btn nx-btn-ghost">
+            <Link href={active === "all" ? "/shop" : `/collections/${active}`} className="nx-btn nx-btn-ghost">
               View All Products
               <svg className="nx-btn-arrow" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                 <path d="M5 12h14M13 6l6 6-6 6" />

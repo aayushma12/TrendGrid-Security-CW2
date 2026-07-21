@@ -2722,6 +2722,29 @@ html[data-nx-theme="dark"] .nx-stars {
 .nx-pay-opt input {
   accent-color: var(--nx-dark);
 }
+.nx-banner {
+  margin: 16px 0;
+  padding: 14px 18px;
+  border-radius: 12px;
+  font-size: 0.92rem;
+  font-weight: 600;
+  border: 1.5px solid transparent;
+}
+.nx-banner-success {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #065f46;
+}
+.nx-banner-error {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #991b1b;
+}
+.nx-banner-warning {
+  background: #fffbeb;
+  border-color: #fde68a;
+  color: #92400e;
+}
 .nx-mini-line {
   display: flex;
   align-items: center;

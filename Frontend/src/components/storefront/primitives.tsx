@@ -25,14 +25,17 @@ export interface CardBehaviour {
   cardShowWishlist: boolean;
 }
 
-export function formatPrice(value?: number | null, currency = "USD"): string {
+export function formatPrice(value?: number | null, currency = "NPR"): string {
   if (value == null) return "";
+  if (currency === "NPR") {
+    return `Rs. ${value.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
+  }
   try {
     return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(
       value,
     );
   } catch {
-    return `$${value.toFixed(2)}`;
+    return `${currency} ${value.toFixed(2)}`;
   }
 }
 

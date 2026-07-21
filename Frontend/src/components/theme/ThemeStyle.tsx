@@ -26,7 +26,6 @@ export function ThemeStyle({ tokens }: { tokens: ThemeTokens }) {
         crossOrigin="anonymous"
       />
       <link rel="stylesheet" href={fontsHref} />
-      {/* eslint-disable-next-line react/no-danger */}
       <style
         id="ndh-theme-vars"
         dangerouslySetInnerHTML={{ __html: root }}

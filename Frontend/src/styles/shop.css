@@ -1469,6 +1469,27 @@
 .swatch[data-color="Light Brown"]{ background: #C9A87C; }
 .swatch[data-color="Gold"]       { background: #C9A24B; }
 
+/* Real seeded catalog palette (prisma/seeds/attributes.ts COLORS) — the
+   generic names above were written for an earlier demo dataset. */
+.swatch[data-color="Navy"]            { background: #1F2A44; }
+.swatch[data-color="Beige"]           { background: #E8DFC8; }
+.swatch[data-color="Olive"]           { background: #6B6E3A; }
+.swatch[data-color="Burgundy"]        { background: #6D1E30; }
+.swatch[data-color="Blush Pink"]      { background: #F3C4C6; }
+.swatch[data-color="Charcoal Grey"]   { background: #3B3B3D; }
+.swatch[data-color="Camel"]           { background: #C19A6B; }
+.swatch[data-color="Ivory"]           { background: #FAF3E7; }
+.swatch[data-color="Mustard"]         { background: #D9A441; }
+.swatch[data-color="Emerald Green"]   { background: #0F6B4F; }
+.swatch[data-color="Rust Orange"]     { background: #B4552B; }
+.swatch[data-color="Dusty Rose"]      { background: #C98A94; }
+.swatch[data-color="Sage Green"]      { background: #9CAF88; }
+.swatch[data-color="Cobalt Blue"]     { background: #1E4FA3; }
+.swatch[data-color="Lavender"]        { background: #B9A6D9; }
+.swatch[data-color="Terracotta"]      { background: #C1673A; }
+.swatch[data-color="Chocolate Brown"] { background: #4A2E1F; }
+.swatch[data-color="Champagne Gold"]  { background: #D9C48C; }
+
 .swatch-row.is-active .swatch {
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
@@ -1683,6 +1704,26 @@
 .swatch-btn[data-color="Cream"]      { background: #E9DCC3; }
 .swatch-btn[data-color="Light Brown"]{ background: #C9A87C; }
 .swatch-btn[data-color="Gold"]       { background: #C9A24B; }
+
+/* Real seeded catalog palette — see the .swatch block above for source. */
+.swatch-btn[data-color="Navy"]            { background: #1F2A44; }
+.swatch-btn[data-color="Beige"]           { background: #E8DFC8; }
+.swatch-btn[data-color="Olive"]           { background: #6B6E3A; }
+.swatch-btn[data-color="Burgundy"]        { background: #6D1E30; }
+.swatch-btn[data-color="Blush Pink"]      { background: #F3C4C6; }
+.swatch-btn[data-color="Charcoal Grey"]   { background: #3B3B3D; }
+.swatch-btn[data-color="Camel"]           { background: #C19A6B; }
+.swatch-btn[data-color="Ivory"]           { background: #FAF3E7; }
+.swatch-btn[data-color="Mustard"]         { background: #D9A441; }
+.swatch-btn[data-color="Emerald Green"]   { background: #0F6B4F; }
+.swatch-btn[data-color="Rust Orange"]     { background: #B4552B; }
+.swatch-btn[data-color="Dusty Rose"]      { background: #C98A94; }
+.swatch-btn[data-color="Sage Green"]      { background: #9CAF88; }
+.swatch-btn[data-color="Cobalt Blue"]     { background: #1E4FA3; }
+.swatch-btn[data-color="Lavender"]        { background: #B9A6D9; }
+.swatch-btn[data-color="Terracotta"]      { background: #C1673A; }
+.swatch-btn[data-color="Chocolate Brown"] { background: #4A2E1F; }
+.swatch-btn[data-color="Champagne Gold"]  { background: #D9C48C; }
 
 .swatch-btn.is-active {
   outline: 2px solid var(--color-primary);
@@ -2124,6 +2165,15 @@
 
   .shop-layout {
     grid-template-columns: 1fr;
+  }
+
+  /* The persistent sidebar filter panel is desktop-only — below this
+     breakpoint filtering happens through the #filterTrigger-opened
+     FilterDrawer instead, which renders its own (unscoped/static) copy of
+     the same <Filters> panel. Without this the sidebar would otherwise just
+     stack as a second, redundant filter list above the product grid. */
+  .shop-layout > .filters {
+    display: none;
   }
 
   .pdp,

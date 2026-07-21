@@ -2,6 +2,7 @@
 
 import { use, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { NexaHeader } from "@/components/home-nexa/NexaHeader";
 import { NexaFooter } from "@/components/home-nexa/NexaFooter";
 import { cancelOrder, getOrder } from "@/lib/api/orders";
@@ -18,6 +19,8 @@ const CANCELLABLE = new Set(["PENDING", "CONFIRMED", "PROCESSING", "PACKED", "RE
 export default function OrderDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { isAuthenticated, loading: authLoading } = useAuth();
+  const searchParams = useSearchParams();
+  const paymentResult = searchParams.get("payment");
 
   const [order, setOrder] = useState<OrderDto | null>(null);
   const [loading, setLoading] = useState(true);
@@ -67,6 +70,22 @@ export default function OrderDetailsPage({ params }: { params: Promise<{ id: str
             <span aria-hidden>/</span>
             <span>{order?.orderNumber ?? "Order"}</span>
           </nav>
+
+          {paymentResult === "success" && (
+            <div className="nx-banner nx-banner-success" role="status">
+              ✅ Payment successful — your order is confirmed.
+            </div>
+          )}
+          {paymentResult === "failed" && (
+            <div className="nx-banner nx-banner-error" role="alert">
+              ❌ Payment failed or was cancelled. Your order is still pending — you can retry payment or choose Cash on Delivery.
+            </div>
+          )}
+          {paymentResult === "unconfirmed" && (
+            <div className="nx-banner nx-banner-warning" role="alert">
+              ⏳ We couldn&apos;t confirm your payment yet. If money was deducted, it will reflect here shortly — otherwise please retry.
+            </div>
+          )}
 
           {authLoading || loading ? (
             <p style={{ padding: "40px 0", color: "var(--nx-muted, #6b7280)" }}>Loading order…</p>

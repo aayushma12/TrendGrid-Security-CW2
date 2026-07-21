@@ -104,7 +104,7 @@ const HeroBanner: SectionComponent = ({ s, ctx }) => {
   );
 };
 
-const HeroSplit: SectionComponent = ({ s, ctx }) => {
+const HeroSplit: SectionComponent = ({ s }) => {
   const set = s.settingsJson;
   return (
     <section className="ndh-section">
@@ -672,7 +672,6 @@ const RichText: SectionComponent = ({ s }) => (
     <Container>
       <div
         style={{ maxWidth: "720px", marginInline: "auto", lineHeight: "var(--line-height-relaxed)" }}
-        // eslint-disable-next-line react/no-danger
         dangerouslySetInnerHTML={{ __html: str(s.settingsJson, "html", "<p>Rich text content.</p>") }}
       />
     </Container>
@@ -799,7 +798,6 @@ const ContactForm: SectionComponent = ({ s }) => (
 const CustomHtml: SectionComponent = ({ s }) => (
   <section className="ndh-section">
     <Container>
-      {/* eslint-disable-next-line react/no-danger */}
       <div dangerouslySetInnerHTML={{ __html: str(s.settingsJson, "html", "") }} />
     </Container>
   </section>

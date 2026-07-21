@@ -15,7 +15,7 @@ const ICONS = [
 const DEFAULT_FEATURES = [
   {
     title: "Free Shipping",
-    text: `On every order over $${STORE.freeShippingOver}, delivered fast.`,
+    text: `On every order over Rs. ${STORE.freeShippingOver.toLocaleString("en-IN")}, delivered fast.`,
   },
   {
     title: "Easy 30-Day Returns",

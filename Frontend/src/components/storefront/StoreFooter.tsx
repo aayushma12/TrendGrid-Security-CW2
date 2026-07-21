@@ -14,8 +14,8 @@ const COLUMNS = [
   {
     title: "Customer Services",
     links: [
-      { label: "My Account", href: "/account" },
-      { label: "Track Your Order", href: "/account/orders" },
+      { label: "My Account", href: "/profile" },
+      { label: "Track Your Order", href: "/track" },
       { label: "Return", href: "/shop" },
       { label: "FAQ", href: "/#faq" },
     ],
@@ -135,7 +135,7 @@ export function StoreFooter() {
           <span>Copyright © 2024 Clothing Website Design. All Rights Reserved.</span>
           <div className="footer__bottom-end">
             <span>English ↓</span>
-            <span>USD ↓</span>
+            <span>NPR ↓</span>
           </div>
         </div>
       </div>
