@@ -38,19 +38,52 @@ export const parseQueryOptions = (
         ? 'desc'
         : DEFAULT_SORT_ORDER;
 
-  const filters: Record<string, string | boolean | number> = {};
-  for (const [key, value] of Object.entries(q)) {
+  // A repeated key (?color=Red&color=Blue) comes through req.query as a real
+  // string[] at runtime — `q` above is cast to Record<string,string> for the
+  // pagination/sort fields (which are never repeated), so this loop reads
+  // straight from req.query instead to see arrays as arrays rather than
+  // coercing them into a single joined/garbled string.
+  //
+  // A route with a zod query schema (validate middleware) has ALREADY run by
+  // the time this executes, and it replaces req.query with its parsed
+  // output — z.coerce.number()/boolean unions turn "1000"/"true" into real
+  // number/boolean values before we ever see them. Routes with no query
+  // schema leave everything as strings. Both cases have to be handled here.
+  const filters: Record<string, string | string[] | boolean | number | null> = {};
+  for (const [key, rawValue] of Object.entries(req.query)) {
     if (RESERVED_KEYS.has(key)) continue;
     if (opts.allowedFilters && !opts.allowedFilters.includes(key)) continue;
-    if (value === undefined || value === '') continue;
+    if (rawValue === undefined) continue;
 
-    const asBool = parseBool(value);
+    // A zod schema can validate+transform a query value to `null` (e.g.
+    // parentCategoryId: "null"/"" -> null, meaning "top-level only"). Must be
+    // preserved as real `null`, not dropped or coerced — Number(null) is 0,
+    // which would silently misfilter rather than error.
+    if (rawValue === null) {
+      filters[key] = null;
+      continue;
+    }
+
+    if (Array.isArray(rawValue)) {
+      const values = rawValue.filter((v): v is string => typeof v === 'string' && v !== '');
+      if (values.length > 0) filters[key] = values;
+      continue;
+    }
+
+    if (typeof rawValue === 'boolean' || typeof rawValue === 'number') {
+      filters[key] = rawValue;
+      continue;
+    }
+
+    if (typeof rawValue !== 'string' || rawValue === '') continue;
+
+    const asBool = parseBool(rawValue);
     if (asBool !== undefined) {
       filters[key] = asBool;
       continue;
     }
-    const asNum = Number(value);
-    filters[key] = !Number.isNaN(asNum) && value.trim() !== '' ? asNum : value;
+    const asNum = Number(rawValue);
+    filters[key] = !Number.isNaN(asNum) && rawValue.trim() !== '' ? asNum : rawValue;
   }
 
   return {

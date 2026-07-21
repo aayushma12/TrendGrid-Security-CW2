@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import {
   BARCODE_MAX,
+  BULK_MAX_IDS,
   CHAR_NAME_MAX,
   CHAR_NAME_MIN,
   CHAR_VALUE_MAX,
@@ -110,21 +111,42 @@ export const updateAssignmentsSchema = z
 
 export const productIdParamsSchema = z.object({ id: uuid });
 
+const boolQueryParam = z
+  .union([z.boolean(), z.enum(['true', 'false'])])
+  .transform((v) => (typeof v === 'boolean' ? v : v === 'true'));
+
+/** A filter that accepts either one value (?color=Red) or several via a repeated key (?color=Red&color=Blue). */
+const multiValueQueryParam = z.union([
+  z.string().trim().min(1),
+  z.array(z.string().trim().min(1).max(100)).min(1).max(50),
+]);
+
 export const listProductsQuerySchema = z.object({
   page: z.coerce.number().int().positive().optional(),
   limit: z.coerce.number().int().positive().max(100).optional(),
   search: z.string().trim().min(1).optional(),
   categoryId: uuid.optional(),
-  brand: z.string().trim().optional(),
+  brand: multiValueQueryParam.optional(),
   status: z.enum(PRODUCT_STATUSES).optional(),
   priceMin: z.coerce.number().nonnegative().optional(),
   priceMax: z.coerce.number().positive().optional(),
-  isActive: z.union([z.boolean(), z.enum(['true', 'false'])]).transform((v) => (typeof v === 'boolean' ? v : v === 'true')).optional(),
-  isFeatured: z.union([z.boolean(), z.enum(['true', 'false'])]).transform((v) => (typeof v === 'boolean' ? v : v === 'true')).optional(),
-  isRecommended: z.union([z.boolean(), z.enum(['true', 'false'])]).transform((v) => (typeof v === 'boolean' ? v : v === 'true')).optional(),
-  isTrending: z.union([z.boolean(), z.enum(['true', 'false'])]).transform((v) => (typeof v === 'boolean' ? v : v === 'true')).optional(),
-  isBestSeller: z.union([z.boolean(), z.enum(['true', 'false'])]).transform((v) => (typeof v === 'boolean' ? v : v === 'true')).optional(),
-  isNewArrival: z.union([z.boolean(), z.enum(['true', 'false'])]).transform((v) => (typeof v === 'boolean' ? v : v === 'true')).optional(),
+  isActive: boolQueryParam.optional(),
+  isFeatured: boolQueryParam.optional(),
+  isRecommended: boolQueryParam.optional(),
+  isTrending: boolQueryParam.optional(),
+  isBestSeller: boolQueryParam.optional(),
+  isNewArrival: boolQueryParam.optional(),
+  onSale: boolQueryParam.optional(),
+  inStock: boolQueryParam.optional(),
+  // Multi-value filters against the tags/labels/collections/sizes arrays and
+  // the variant color relation — see repository/product.ts findMany. `label`
+  // also doubles as the gender filter (see PRODUCT_FILTER_FIELDS).
+  tag: multiValueQueryParam.optional(),
+  label: multiValueQueryParam.optional(),
+  collection: multiValueQueryParam.optional(),
+  color: multiValueQueryParam.optional(),
+  size: multiValueQueryParam.optional(),
+  curatedCollectionId: z.string().uuid().optional(),
   sortBy: z.enum(PRODUCT_SORT_FIELDS).optional(),
   sortOrder: z.enum(['asc', 'desc']).optional(),
 });
@@ -198,3 +220,42 @@ export const updateVariantSchema = z
 
 export const variantParamsSchema = z.object({ id: uuid, variantId: uuid });
 export const variantImageParamsSchema = z.object({ id: uuid, variantId: uuid, imageId: uuid });
+
+// ---------- Bulk operations ----------
+
+const idList = z.array(uuid).min(1, 'At least one id is required').max(BULK_MAX_IDS, `A single bulk request can include at most ${BULK_MAX_IDS} ids.`);
+
+export const bulkStatusSchema = z.object({ ids: idList, status: z.enum(PRODUCT_STATUSES) });
+export const bulkActiveSchema = z.object({ ids: idList, isActive: z.boolean() });
+export const bulkDeleteSchema = z.object({ ids: idList });
+
+// ---------- CSV import ----------
+
+export const importProductsQuerySchema = z.object({
+  // Dry run validates + reports without writing anything — lets an admin
+  // preview what a file would do before committing to it.
+  dryRun: z.union([z.boolean(), z.enum(['true', 'false'])]).transform((v) => (typeof v === 'boolean' ? v : v === 'true')).optional(),
+});
+
+/** One row of a parsed CSV import, before it's turned into a CreateProductDto. */
+export const importRowSchema = z.object({
+  name: nameSchema,
+  description: descSchema.optional().or(z.literal('')),
+  shortDescription: shortDescSchema.optional().or(z.literal('')),
+  basePrice: price,
+  discountPrice: optionalPrice.optional().or(z.literal('')),
+  currency: currency.optional().or(z.literal('')),
+  categoryName: z.string().trim().min(1, 'categoryName is required'),
+  brand: z.string().trim().max(200).optional().or(z.literal('')),
+  sizes: z.string().optional().or(z.literal('')), // "S,M,L" — split + trimmed by the importer
+  tags: z.string().optional().or(z.literal('')),
+  labels: z.string().optional().or(z.literal('')),
+  collections: z.string().optional().or(z.literal('')),
+});
+
+// ---------- Stats ----------
+
+export const catalogStatsQuerySchema = z.object({
+  recentDays: z.coerce.number().int().positive().max(365).optional(),
+  lowStockThreshold: z.coerce.number().int().nonnegative().optional(),
+});

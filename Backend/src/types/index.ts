@@ -44,5 +44,7 @@ export interface QueryOptions {
   sortBy: string;
   sortOrder: 'asc' | 'desc';
   search?: string;
-  filters: Record<string, string | boolean | number>;
+  /** A repeated query key (e.g. `?color=Red&color=Blue`) comes through as `string[]`;
+   *  a zod-validated `?x=null` (e.g. parentCategoryId) comes through as `null` — see parseQueryOptions. */
+  filters: Record<string, string | string[] | boolean | number | null>;
 }
