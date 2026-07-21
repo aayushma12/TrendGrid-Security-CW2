@@ -152,6 +152,12 @@ export const deleteCategory = async (id: string): Promise<void> => {
   if (childCount > 0) {
     throw new BadRequestError(CATEGORY_MESSAGES.HAS_CHILDREN);
   }
+  // Product.category is onDelete: Restrict at the DB level — check up front
+  // for a clean error instead of letting a raw FK-constraint error surface.
+  const productCount = await categoryRepo.countProducts(id);
+  if (productCount > 0) {
+    throw new BadRequestError(CATEGORY_MESSAGES.HAS_PRODUCTS);
+  }
 
   // Best-effort image cleanup — deleteImage swallows errors and logs.
   if (existing.imagePublicId) {
@@ -162,6 +168,49 @@ export const deleteCategory = async (id: string): Promise<void> => {
   if (!removed) throw new NotFoundError(CATEGORY_MESSAGES.NOT_FOUND);
 
   logger.info(`Category deleted id=${id}`);
+};
+
+// ------------- Bulk operations -------------
+
+export interface CategoryBulkResult {
+  requested: number;
+  updated: number;
+  notFound: string[];
+}
+
+export const bulkUpdateCategoryActive = async (ids: string[], isActive: boolean): Promise<CategoryBulkResult> => {
+  const existing = await categoryRepo.findExistingIds(ids);
+  const existingSet = new Set(existing);
+  const notFound = ids.filter((id) => !existingSet.has(id));
+  const updated = existing.length > 0 ? await categoryRepo.bulkUpdateActive(existing, isActive) : 0;
+  logger.info(`Bulk category active update: ${updated}/${ids.length} to isActive=${isActive}`);
+  return { requested: ids.length, updated, notFound };
+};
+
+export interface CategoryBulkDeleteResult {
+  requested: number;
+  deleted: number;
+  failed: { id: string; reason: string }[];
+}
+
+/** Reuses the single-delete path per id (image cleanup + children/products
+ *  checks) so one bad id in the batch is reported, not a whole-batch failure. */
+export const bulkDeleteCategories = async (ids: string[]): Promise<CategoryBulkDeleteResult> => {
+  let deleted = 0;
+  const failed: { id: string; reason: string }[] = [];
+
+  for (const id of ids) {
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      await deleteCategory(id);
+      deleted++;
+    } catch (err) {
+      failed.push({ id, reason: err instanceof Error ? err.message : 'Unknown error' });
+    }
+  }
+
+  logger.info(`Bulk category delete: ${deleted}/${ids.length} removed, ${failed.length} failed`);
+  return { requested: ids.length, deleted, failed };
 };
 
 export const updateCategoryStatus = async (

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import {
+  CATEGORY_BULK_MAX_IDS,
   CATEGORY_DESCRIPTION_MAX,
   CATEGORY_NAME_MAX,
   CATEGORY_NAME_MIN,
@@ -76,3 +77,10 @@ export const listCategoriesQuerySchema = z.object({
 export type CreateCategoryInput = z.infer<typeof createCategorySchema>;
 export type UpdateCategoryInput = z.infer<typeof updateCategorySchema>;
 export type ListCategoriesQuery = z.infer<typeof listCategoriesQuerySchema>;
+
+// ---------- Bulk operations ----------
+
+const idList = z.array(uuidSchema).min(1, 'At least one id is required').max(CATEGORY_BULK_MAX_IDS, `A single bulk request can include at most ${CATEGORY_BULK_MAX_IDS} ids.`);
+
+export const bulkCategoryActiveSchema = z.object({ ids: idList, isActive: z.boolean() });
+export const bulkCategoryDeleteSchema = z.object({ ids: idList });

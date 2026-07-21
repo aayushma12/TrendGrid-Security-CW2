@@ -119,6 +119,24 @@ export const listCategoryProductsController = async (req: Request, res: Response
     allowedSortFields: [...PRODUCT_SORT_FIELDS],
     allowedFilters: PRODUCT_FILTER_FIELDS.filter((f) => f !== 'categoryId'),
   });
+  // This route is public (storefront) but reused by admin previews — only an
+  // authenticated admin sees draft/inactive products through it.
+  if (req.user?.role !== 'ADMIN') {
+    options.filters.status = 'PUBLISHED';
+    options.filters.isActive = true;
+  }
   const result = await categoryService.listProductsInCategory(req.params.id, options);
   success(res, result, 'Products retrieved successfully.');
+};
+
+// -------- Bulk operations --------
+
+export const bulkUpdateCategoryActiveController = async (req: Request, res: Response): Promise<void> => {
+  const result = await categoryService.bulkUpdateCategoryActive(req.body.ids, req.body.isActive);
+  success(res, result, CATEGORY_MESSAGES.BULK_STATUS_UPDATED);
+};
+
+export const bulkDeleteCategoriesController = async (req: Request, res: Response): Promise<void> => {
+  const result = await categoryService.bulkDeleteCategories(req.body.ids);
+  success(res, result, CATEGORY_MESSAGES.BULK_DELETED);
 };

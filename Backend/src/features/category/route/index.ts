@@ -10,9 +10,12 @@ import { Router } from 'express';
 
 import { defineRoutes } from '../../../utils/defineRoute';
 import { memoryUploader } from '../../../config/cloudinary';
+import { optionalAuth } from '../../../middleware/auth';
 
 import { listProductsQuerySchema } from '../../product/validator';
 import {
+  bulkDeleteCategoriesController,
+  bulkUpdateCategoryActiveController,
   createCategoryController,
   deleteCategoryController,
   getCategoriesController,
@@ -27,6 +30,8 @@ import {
   uploadCategoryImageController,
 } from '../controller';
 import {
+  bulkCategoryActiveSchema,
+  bulkCategoryDeleteSchema,
   categoryIdParamsSchema,
   listCategoriesQuerySchema,
   updateCategoryFeatureSchema,
@@ -34,6 +39,14 @@ import {
 } from '../validator';
 
 const router = Router();
+
+// ── Admin: fixed-path bulk routes — registered before any `/:id` route below. ──
+defineRoutes(router, [
+  { method: 'post', path: '/bulk/active', auth: 'ADMIN',
+    schema: { body: bulkCategoryActiveSchema }, handler: bulkUpdateCategoryActiveController },
+  { method: 'post', path: '/bulk/delete', auth: 'ADMIN',
+    schema: { body: bulkCategoryDeleteSchema }, handler: bulkDeleteCategoriesController },
+]);
 
 // ── Public reads (storefront) ──────────────────────────────────────────────
 defineRoutes(router, [
@@ -69,6 +82,7 @@ defineRoutes(router, [
     method: 'get',
     path: '/:id/products',
     auth: 'public',
+    preAuth: [optionalAuth],
     schema: { params: categoryIdParamsSchema, query: listProductsQuerySchema },
     handler: listCategoryProductsController,
   },

@@ -28,4 +28,11 @@ export const CATEGORY_MESSAGES = {
   SELF_PARENT: 'A category cannot be its own parent.',
   CYCLE: 'This would create a circular parent-child relationship.',
   HAS_CHILDREN: 'Cannot delete a category that has sub-categories.',
+  HAS_PRODUCTS: 'Cannot delete a category that still has products assigned to it.',
+
+  BULK_STATUS_UPDATED: 'Categories updated successfully.',
+  BULK_DELETED: 'Bulk delete complete.',
 } as const;
+
+/** Max ids accepted in one bulk request — mirrors product/constants.ts's BULK_MAX_IDS. */
+export const CATEGORY_BULK_MAX_IDS = 500;

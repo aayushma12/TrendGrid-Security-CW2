@@ -98,6 +98,23 @@ export const remove = async (id: string): Promise<boolean> => {
 export const countChildren = async (id: string): Promise<number> =>
   prisma.category.count({ where: { parentCategoryId: id } });
 
+/** Number of products directly assigned to a category — checked before delete
+ *  since Product.category is onDelete: Restrict at the DB level. */
+export const countProducts = async (id: string): Promise<number> =>
+  prisma.product.count({ where: { categoryId: id } });
+
+// ------------- Bulk operations -------------
+
+export const findExistingIds = async (ids: string[]): Promise<string[]> => {
+  const rows = await prisma.category.findMany({ where: { id: { in: ids } }, select: { id: true } });
+  return rows.map((r) => r.id);
+};
+
+export const bulkUpdateActive = async (ids: string[], isActive: boolean): Promise<number> => {
+  const { count } = await prisma.category.updateMany({ where: { id: { in: ids } }, data: { isActive } });
+  return count;
+};
+
 /** Return all direct subcategories of a category (id + name + imageUrl only). */
 export const findSubcategories = async (
   parentId: string,
@@ -163,6 +180,40 @@ export const findMany = async (
   ]);
 
   return { items: rows.map(toCategoryWithRelations), total };
+};
+
+/**
+ * All category ids reachable from `categoryId` (itself included) by walking
+ * parentCategoryId downward. Products are only ever assigned to leaf
+ * subcategories (see prisma/seedCatalog.ts) — filtering product listings by
+ * an exact categoryId match alone means every top-level/parent category
+ * always returns zero products. The product service expands a categoryId
+ * filter through this before querying, so picking a parent category also
+ * returns everything under it.
+ *
+ * Fetches the whole (small, ~150-row) category table once and walks it in
+ * memory rather than recursive queries — cheap at this scale, and correct
+ * for a tree of any depth (not just the current two levels).
+ */
+export const getDescendantIds = async (categoryId: string): Promise<string[]> => {
+  const all = await prisma.category.findMany({ select: { id: true, parentCategoryId: true } });
+  const childrenOf = new Map<string, string[]>();
+  for (const c of all) {
+    if (!c.parentCategoryId) continue;
+    const list = childrenOf.get(c.parentCategoryId);
+    if (list) list.push(c.id);
+    else childrenOf.set(c.parentCategoryId, [c.id]);
+  }
+
+  const result: string[] = [];
+  const queue = [categoryId];
+  while (queue.length > 0) {
+    const current = queue.shift() as string;
+    result.push(current);
+    const children = childrenOf.get(current);
+    if (children) queue.push(...children);
+  }
+  return result;
 };
 
 export const findAllActive = async (): Promise<Category[]> => {
