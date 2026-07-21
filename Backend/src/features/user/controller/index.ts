@@ -1,7 +1,8 @@
 /**
  * Controller — lightweight. Receives request → calls service → standard response.
  */
-import { Request, Response } from 'express';
+import type { Request, Response } from 'express';
+
 import * as userService from '../service';
 import { success, created, noContent, paginated } from '../../../utils/response';
 import { parseQueryOptions } from '../../../utils/queryOptions';
@@ -64,6 +65,11 @@ export const deleteUserController = async (req: Request, res: Response): Promise
   await userService.deleteUser(req.params.id, req.user?.id);
   logger.warn(`AUDIT user deleted by admin=${req.user?.id} target=${req.params.id}`);
   noContent(res);
+};
+
+export const resetUserMfaController = async (req: Request, res: Response): Promise<void> => {
+  const user = await userService.adminResetMfa(req.params.id, req.user!.id);
+  success(res, user, 'MFA has been reset for this user. They can log in with just their password and re-enroll.');
 };
 
 export const uploadUserAvatarController = async (req: Request, res: Response): Promise<void> => {

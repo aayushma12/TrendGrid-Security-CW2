@@ -7,13 +7,13 @@ import { Router } from 'express';
 
 import { defineRoutes } from '../../../utils/defineRoute';
 import { memoryUploader } from '../../../config/cloudinary';
-
 import {
   createUserController,
   deleteUserController,
   getUserController,
   getUsersController,
   removeUserAvatarController,
+  resetUserMfaController,
   updateUserController,
   uploadUserAvatarController,
 } from '../controller';
@@ -79,6 +79,17 @@ defineRoutes(router, [
     auth: 'authenticated',
     schema: { params: userIdParamsSchema },
     handler: removeUserAvatarController,
+  },
+  {
+    method: 'post',
+    path: '/:id/mfa/reset',
+    // Support/lockout-recovery action — a user with no authenticator access
+    // and no backup codes has no self-service path back into their own
+    // account, so this has to be admin-initiated. Audited + alerted (see
+    // adminResetMfa) since it's a meaningful security boundary change.
+    auth: 'ADMIN',
+    schema: { params: userIdParamsSchema },
+    handler: resetUserMfaController,
   },
 ]);
 
