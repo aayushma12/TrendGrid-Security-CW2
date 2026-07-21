@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { resolveTenant, tenantNotFound } from "@/lib/tenant";
 import { sanitizeTokens, toJsonSafe } from "@/lib/theme-write";
@@ -51,7 +52,7 @@ export async function POST(req: Request, { params }: Ctx) {
       where: { id: theme.id },
       data: {
         ...(draft ?? {}),
-        draftTokens: null,
+        draftTokens: Prisma.JsonNull,
         isActive: true,
         publishedAt: new Date(),
         version: { increment: 1 },

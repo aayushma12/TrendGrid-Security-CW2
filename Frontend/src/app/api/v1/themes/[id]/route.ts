@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { resolveTenant, tenantNotFound } from "@/lib/tenant";
 import { sanitizeTokens, toJsonSafe } from "@/lib/theme-write";
@@ -41,7 +42,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
   if (body.discardDraft === true) {
     const updated = await prisma.theme.update({
       where: { id: existing.id },
-      data: { draftTokens: null },
+      data: { draftTokens: Prisma.JsonNull },
     });
     return Response.json({ data: updated });
   }

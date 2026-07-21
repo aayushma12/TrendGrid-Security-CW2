@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { resolveTenant, tenantNotFound } from "@/lib/tenant";
 import { sanitizeTokens } from "@/lib/theme-write";
@@ -32,7 +33,7 @@ const TEMPLATE_SECTIONS: { type: string; settingsJson: Record<string, unknown> }
     type: "features_row",
     settingsJson: {
       items: [
-        { icon: "📦", title: "Free Shipping", text: "Free shipping for orders above $180" },
+        { icon: "📦", title: "Free Shipping", text: "Free shipping for orders above Rs. 5,000" },
         { icon: "💳", title: "Flexible Payment", text: "Multiple secure payment options" },
         { icon: "🎧", title: "24x7 Support", text: "We support online all days" },
       ],
@@ -165,7 +166,7 @@ export async function POST(req: Request) {
         type: t.type as never,
         order: i,
         isVisible: true,
-        settingsJson: t.settingsJson,
+        settingsJson: t.settingsJson as Prisma.InputJsonValue,
       },
     });
   }

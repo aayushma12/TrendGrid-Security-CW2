@@ -1,7 +1,8 @@
+import type { PageType } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { resolveTenant, tenantNotFound } from "@/lib/tenant";
 
-const PAGE_TYPES = ["home", "shop", "about", "landing", "custom"];
+const PAGE_TYPES: PageType[] = ["home", "shop", "about", "landing", "custom"];
 
 function slugify(s: string): string {
   return s
@@ -34,7 +35,7 @@ export async function POST(req: Request) {
   const title = typeof body.title === "string" ? body.title.trim() : "";
   if (!title) return Response.json({ error: "Title is required" }, { status: 400 });
 
-  const type: string = PAGE_TYPES.includes(body.type) ? body.type : "custom";
+  const type: PageType = PAGE_TYPES.includes(body.type) ? body.type : "custom";
 
   // Unique slug per tenant: base, base-2, base-3, ...
   const base = typeof body.slug === "string" && body.slug.trim() ? slugify(body.slug) : slugify(title);

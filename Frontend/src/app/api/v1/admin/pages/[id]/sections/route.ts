@@ -1,3 +1,4 @@
+import type { SectionType } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { resolveTenant, tenantNotFound } from "@/lib/tenant";
 import { SECTION_CATALOG } from "@/components/storefront/sections";
@@ -29,7 +30,7 @@ export async function POST(req: Request, { params }: Ctx) {
     data: {
       tenantId: tenant.id,
       pageId: page.id,
-      type: entry.type,
+      type: entry.type as SectionType,
       order: (last?.order ?? -1) + 1,
       isVisible: true,
       settingsJson: { heading: entry.label },
