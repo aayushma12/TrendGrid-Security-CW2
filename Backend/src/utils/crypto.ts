@@ -79,3 +79,16 @@ export const decryptJson = <T>(stored: string): T => JSON.parse(decryptField(sto
  */
 export const hashUserAgent = (userAgent: string | undefined | null): string | null =>
   userAgent ? crypto.createHash('sha256').update(userAgent).digest('hex') : null;
+
+/**
+ * One-way hash for high-entropy random tokens (password-reset tokens).
+ * A plain SHA-256 is appropriate here — unlike a user-chosen password or a
+ * short MFA backup code, a 256-bit random token can't be brute-forced from
+ * its hash regardless of hash speed, so bcrypt's deliberate slowness buys
+ * nothing extra. Only the hash is stored; the raw token is emailed once.
+ */
+export const hashToken = (token: string): string =>
+  crypto.createHash('sha256').update(token).digest('hex');
+
+/** Generates a high-entropy random token for emailing (e.g. password reset links). */
+export const generateToken = (bytes = 32): string => crypto.randomBytes(bytes).toString('hex');
