@@ -31,6 +31,8 @@ export interface UserResponseDto {
   role: UserRole;
   isActive: boolean;
   avatarUrl?: string;
+  mfaEnabled: boolean;
+  mfaMethod?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -44,6 +46,8 @@ export const toUserResponseDto = (user: User): UserResponseDto => ({
   role: user.role,
   isActive: user.isActive,
   avatarUrl: user.avatarUrl,
+  mfaEnabled: user.mfaEnabled,
+  mfaMethod: user.mfaMethod,
   createdAt: user.createdAt.toISOString(),
   updatedAt: user.updatedAt.toISOString(),
 });

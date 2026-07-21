@@ -13,6 +13,10 @@ export interface User {
   deletedBy?: string;
   avatarUrl?: string;
   avatarPublicId?: string;
+  /** Whether MFA is enrolled — not sensitive itself (unlike the secret/backup codes), safe to expose in DTOs. */
+  mfaEnabled: boolean;
+  /** "totp" | "email" | null — which second factor is active. Safe to expose, same as mfaEnabled. */
+  mfaMethod?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -22,7 +26,6 @@ export interface UserWithPassword extends User {
   failedLoginAttempts: number;
   lockedUntil?: Date;
   passwordChangedAt: Date;
-  mfaEnabled: boolean;
   mfaSecret?: string;
   mfaBackupCodes: string[];
 }

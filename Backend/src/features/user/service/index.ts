@@ -3,15 +3,17 @@
  */
 import bcrypt from 'bcrypt';
 
-import { QueryOptions, PaginationMeta } from '../../../types';
+import type { QueryOptions, PaginationMeta } from '../../../types';
 import { DuplicateError, NotFoundError, BadRequestError } from '../../../utils/errors';
 import { deleteImage, replaceImage } from '../../../services/imageService';
 import { buildPaginationMeta } from '../../../utils/queryOptions';
-
+import { logger } from '../../../utils/logger';
+import { sendSecurityAlert } from '../../../utils/securityAlert';
 import * as userRepo from '../repository';
-import { CreateUserDto, UpdateUserDto, UserResponseDto, toUserResponseDto } from '../dto';
-import { USER_AVATAR_SUBFOLDER, UserRole } from '../constants';
-
+import type { CreateUserDto, UpdateUserDto, UserResponseDto} from '../dto';
+import { toUserResponseDto } from '../dto';
+import type { UserRole } from '../constants';
+import { USER_AVATAR_SUBFOLDER } from '../constants';
 import { env } from '../../../config/env';
 
 const SALT_ROUNDS = env.jwt.saltRounds;
@@ -50,6 +52,26 @@ export const getUserById = async (id: string): Promise<UserResponseDto> => {
   const user = await userRepo.findById(id);
   if (!user) throw new NotFoundError('User not found');
   return toUserResponseDto(user);
+};
+
+/**
+ * Support-initiated MFA reset — for a user locked out of their own second
+ * factor (lost authenticator, no backup codes) with no other way back in,
+ * since the normal self-service disableMfa requires an authenticated
+ * session + current password, which is exactly what they don't have.
+ * ADMIN-only; clears whichever method (TOTP or email) was enrolled.
+ */
+export const adminResetMfa = async (targetUserId: string, actorId: string): Promise<UserResponseDto> => {
+  const user = await userRepo.findById(targetUserId);
+  if (!user) throw new NotFoundError('User not found');
+  if (!user.mfaEnabled) throw new BadRequestError('This user does not have MFA enabled.');
+
+  await userRepo.disableMfa(targetUserId);
+  logger.warn(`MFA reset by admin actorId=${actorId} targetUserId=${targetUserId}`);
+  sendSecurityAlert('admin_mfa_reset', { actorId, targetUserId, targetEmail: user.email });
+
+  const updated = await userRepo.findById(targetUserId);
+  return toUserResponseDto(updated!);
 };
 
 export const getUsers = async (
