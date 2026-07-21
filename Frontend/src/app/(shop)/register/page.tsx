@@ -6,6 +6,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { NexaHeader } from "@/components/home-nexa/NexaHeader";
 import { NexaFooter } from "@/components/home-nexa/NexaFooter";
 import { formatAuthError, useAuth } from "@/lib/auth-context";
+import { CaptchaWidget } from "@/components/auth/CaptchaWidget";
+import { PasswordStrengthMeter, passwordMeetsPolicy } from "@/components/auth/PasswordStrengthMeter";
 
 /**
  * /register — customer self-registration. Backend always assigns role USER
@@ -22,6 +24,7 @@ function RegisterInner() {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [captchaToken, setCaptchaToken] = useState<string | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -40,8 +43,8 @@ function RegisterInner() {
       setError("Passwords do not match.");
       return;
     }
-    if (password.length < 8 || !/[A-Z]/.test(password) || !/\d/.test(password)) {
-      setError("Password must be at least 8 characters and include an uppercase letter and a number.");
+    if (!passwordMeetsPolicy(password)) {
+      setError("Password must be at least 8 characters and include upper/lowercase letters, a number, and a special character.");
       return;
     }
 
@@ -53,6 +56,7 @@ function RegisterInner() {
         email,
         phoneNumber: phoneNumber.trim() || undefined,
         password,
+        captchaToken,
       });
       router.replace(params.get("redirect") || "/profile");
     } catch (err) {
@@ -144,6 +148,7 @@ function RegisterInner() {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
               />
+              <PasswordStrengthMeter password={password} />
             </div>
             <div className="nx-field">
               <label htmlFor="reg-confirm">Confirm password</label>
@@ -158,9 +163,9 @@ function RegisterInner() {
                 placeholder="••••••••"
               />
             </div>
-            <p className="nx-field is-full" style={{ margin: 0, fontSize: 12, color: "var(--nx-muted, #6b7280)" }}>
-              At least 8 characters, with one uppercase letter and one number.
-            </p>
+            <div className="nx-field is-full">
+              <CaptchaWidget onToken={setCaptchaToken} />
+            </div>
 
             {error && (
               <div
