@@ -37,7 +37,12 @@ function NexaToast({ toast, dismissToast }: { toast: Toast; dismissToast: (id: n
       transition={{ duration: 0.3, ease: EASE }}
       onClick={dismiss}
     >
-      {toast.msg}
+      <span className="nx-toast-ic" aria-hidden>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M20 6 9 17l-5-5" />
+        </svg>
+      </span>
+      <span className="nx-toast-msg">{toast.msg}</span>
     </motion.button>
   );
 }
@@ -48,22 +53,7 @@ function NexaToasts() {
     <div className="nx nx-toasts" aria-live="polite">
       <AnimatePresence>
         {toasts.map((t) => (
-          <motion.button
-            key={t.id}
-            className="nx-toast"
-            initial={{ opacity: 0, y: 18, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 10, scale: 0.96 }}
-            transition={{ duration: 0.3, ease: EASE }}
-            onClick={() => dismissToast(t.id)}
-          >
-            <span className="nx-toast-ic" aria-hidden>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M20 6 9 17l-5-5" />
-              </svg>
-            </span>
-            <span className="nx-toast-msg">{t.msg}</span>
-          </motion.button>
+          <NexaToast key={t.id} toast={t} dismissToast={dismissToast} />
         ))}
       </AnimatePresence>
     </div>
