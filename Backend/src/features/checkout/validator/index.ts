@@ -17,8 +17,7 @@ export const previewCheckoutSchema = z.object({
 
 export const placeOrderSchema = z.object({
   couponCode: z.string().trim().min(1).max(32).optional(),
-  /** COD is the only supported method today; extend the enum when a gateway lands. */
-  paymentMethod: z.enum(['COD']).default('COD'),
+  paymentMethod: z.enum(['COD', 'ESEWA']).default('COD'),
   shippingAddress: addressSchema,
   billingAddress: addressSchema.optional(),
   customerNote: z.string().trim().max(1000).optional(),

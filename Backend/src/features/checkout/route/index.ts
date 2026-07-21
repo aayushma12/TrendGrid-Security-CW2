@@ -1,7 +1,6 @@
 import { Router } from 'express';
 
 import { defineRoutes } from '../../../utils/defineRoute';
-
 import { placeOrderController, previewCheckoutController } from '../controller';
 import { placeOrderSchema, previewCheckoutSchema } from '../validator';
 

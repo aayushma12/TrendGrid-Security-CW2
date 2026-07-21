@@ -1,4 +1,4 @@
-import { CheckoutAddress, CheckoutLine, CheckoutSummary } from '../types';
+import type { CheckoutAddress, CheckoutLine, CheckoutSummary } from '../types';
 
 export interface PreviewCheckoutDto {
   couponCode?: string;
@@ -6,8 +6,7 @@ export interface PreviewCheckoutDto {
 
 export interface PlaceOrderDto {
   couponCode?: string;
-  /** Defaults to COD (the only live method). */
-  paymentMethod?: 'COD';
+  paymentMethod?: 'COD' | 'ESEWA';
   shippingAddress: CheckoutAddress;
   billingAddress?: CheckoutAddress;
   customerNote?: string;

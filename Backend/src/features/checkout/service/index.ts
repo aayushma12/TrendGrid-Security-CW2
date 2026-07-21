@@ -11,19 +11,17 @@ import { BadRequestError, NotFoundError } from '../../../utils/errors';
 import { logger } from '../../../utils/logger';
 import { capDiscount, effectiveUnitPrice, percentageOf, round2 } from '../../../utils/money';
 import { encryptJson } from '../../../utils/crypto';
-
 import * as cartRepo from '../../cart/repository';
 import { validateCoupon } from '../../coupon/service';
 import * as couponRepo from '../../coupon/repository';
 import { getEffectiveSettings } from '../../settings/service';
 import { ESTIMATED_DELIVERY_DAYS } from '../../order/constants';
-
 import * as checkoutRepo from '../repository';
-
-import {
-  CheckoutSummaryResponseDto, PlaceOrderDto, PreviewCheckoutDto, toCheckoutSummaryResponseDto,
+import type {
+  CheckoutSummaryResponseDto, PlaceOrderDto, PreviewCheckoutDto} from '../dto';
+import { toCheckoutSummaryResponseDto,
 } from '../dto';
-import { CheckoutLine, CheckoutSummary } from '../types';
+import type { CheckoutLine, CheckoutSummary } from '../types';
 import { CHECKOUT_MESSAGES } from '../constants';
 
 // -------- shipping / tax helpers --------

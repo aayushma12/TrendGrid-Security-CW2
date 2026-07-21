@@ -12,20 +12,32 @@ import {
   generateInvoiceNumber,
   generateTrackingNumber,
 } from '../../order/utils/numbering';
-import { CheckoutLine } from '../types';
+import type { CheckoutLine } from '../types';
 
-/** Run `fn` inside a single database transaction. */
+/**
+ * Run `fn` inside a single database transaction. Place-order does several
+ * sequential round-trips per line item (guarded stock decrement, order+items
+ * create, optional coupon tracking, cart clear) — on a database with
+ * meaningful network latency this can approach Prisma's 5000ms default
+ * interactive-transaction timeout for even a small cart, surfacing as an
+ * intermittent 500 under normal load rather than genuine deadlock/hang.
+ * 15s gives real headroom without masking an actually-stuck transaction.
+ */
 export const runInTx = async <T>(fn: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> =>
-  prisma.$transaction(fn);
+  prisma.$transaction(fn, { timeout: 15000, maxWait: 10000 });
 
-/** Generate the order / invoice / tracking numbers for a new order. */
+/** Generate the order / invoice / tracking numbers for a new order. Independent
+ *  queries — run in parallel rather than three sequential round-trips. */
 export const nextOrderNumbers = async (
   now: Date,
-): Promise<{ orderNumber: string; invoiceNumber: string; trackingNumber: string }> => ({
-  orderNumber: await generateOrderNumber(prisma, now),
-  invoiceNumber: await generateInvoiceNumber(prisma, now),
-  trackingNumber: await generateTrackingNumber(prisma),
-});
+): Promise<{ orderNumber: string; invoiceNumber: string; trackingNumber: string }> => {
+  const [orderNumber, invoiceNumber, trackingNumber] = await Promise.all([
+    generateOrderNumber(prisma, now),
+    generateInvoiceNumber(prisma, now),
+    generateTrackingNumber(prisma),
+  ]);
+  return { orderNumber, invoiceNumber, trackingNumber };
+};
 
 /**
  * Atomically decrement a variant's stock, guarded so it can never go
@@ -48,7 +60,7 @@ export interface CreateOrderInput {
   invoiceNumber: string;
   trackingNumber: string;
   userId: string;
-  paymentMethod: 'COD';
+  paymentMethod: 'COD' | 'ESEWA';
   estimatedDelivery: Date;
   subtotal: number;
   discountAmount: number;

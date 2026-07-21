@@ -1,7 +1,6 @@
-import { Request, Response } from 'express';
+import type { Request, Response } from 'express';
 
 import { created, success } from '../../../utils/response';
-
 import * as checkoutService from '../service';
 import { CHECKOUT_MESSAGES } from '../constants';
 
