@@ -3,7 +3,7 @@ import type { HomeSectionContent, HomepageSectionDto } from "./types";
 
 /** Public: visible sections only, in display order. Used by the live storefront. */
 export async function listPublicHomepageSections() {
-  return apiRequest<HomepageSectionDto[]>("/homepage", { auth: false });
+  return apiRequest<HomepageSectionDto[]>("/homepage");
 }
 
 /** Admin: every section (visible + hidden), in display order. */
