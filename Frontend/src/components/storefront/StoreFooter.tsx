@@ -23,8 +23,8 @@ const COLUMNS = [
   {
     title: "Our Information",
     links: [
-      { label: "Privacy", href: "/shop" },
-      { label: "User Terms & Condition", href: "/shop" },
+      { label: "Privacy", href: "/privacy" },
+      { label: "User Terms & Condition", href: "/terms" },
       { label: "Return Policy", href: "/shop" },
     ],
   },

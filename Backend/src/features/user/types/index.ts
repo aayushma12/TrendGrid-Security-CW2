@@ -17,6 +17,8 @@ export interface User {
   mfaEnabled: boolean;
   /** "totp" | "email" | null — which second factor is active. Safe to expose, same as mfaEnabled. */
   mfaMethod?: string;
+  isEmailVerified: boolean;
+  emailVerifiedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }

@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { NexaHeader } from "@/components/home-nexa/NexaHeader";
 import { NexaFooter } from "@/components/home-nexa/NexaFooter";
 import { formatAuthError, useAuth } from "@/lib/auth-context";
-import { CaptchaWidget } from "@/components/auth/CaptchaWidget";
+import { CaptchaWidget, isCaptchaEnabled } from "@/components/auth/CaptchaWidget";
 import { PasswordStrengthMeter, passwordMeetsPolicy } from "@/components/auth/PasswordStrengthMeter";
 
 /**
@@ -24,7 +24,9 @@ function RegisterInner() {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [acceptTerms, setAcceptTerms] = useState(false);
   const [captchaToken, setCaptchaToken] = useState<string | undefined>(undefined);
+  const [captchaKey, setCaptchaKey] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -47,6 +49,14 @@ function RegisterInner() {
       setError("Password must be at least 8 characters and include upper/lowercase letters, a number, and a special character.");
       return;
     }
+    if (isCaptchaEnabled() && !captchaToken) {
+      setError("Please complete the CAPTCHA verification before creating an account.");
+      return;
+    }
+    if (!acceptTerms) {
+      setError("You must accept the Terms of Service and Privacy Policy to create an account.");
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -56,11 +66,19 @@ function RegisterInner() {
         email,
         phoneNumber: phoneNumber.trim() || undefined,
         password,
+        acceptTerms,
         captchaToken,
       });
       router.replace(params.get("redirect") || "/profile");
     } catch (err) {
       setError(formatAuthError(err));
+      // A reCAPTCHA v2 token is single-use — whether it failed because the
+      // CAPTCHA itself was rejected or for an unrelated reason (e.g. email
+      // already registered), the token is now stale. Remount the widget so
+      // the user gets a fresh, unchecked box to re-verify without a full
+      // page reload.
+      setCaptchaToken(undefined);
+      setCaptchaKey((k) => k + 1);
     } finally {
       setSubmitting(false);
     }
@@ -164,7 +182,30 @@ function RegisterInner() {
               />
             </div>
             <div className="nx-field is-full">
-              <CaptchaWidget onToken={setCaptchaToken} />
+              <label htmlFor="reg-terms" style={{ display: "flex", alignItems: "flex-start", gap: 8, fontWeight: 400, cursor: "pointer" }}>
+                <input
+                  id="reg-terms"
+                  type="checkbox"
+                  required
+                  checked={acceptTerms}
+                  onChange={(e) => setAcceptTerms(e.target.checked)}
+                  style={{ marginTop: 3 }}
+                />
+                <span style={{ fontSize: 13.5 }}>
+                  I have read and agree to the{" "}
+                  <Link href="/terms" target="_blank" style={{ fontWeight: 600 }}>
+                    Terms of Service
+                  </Link>{" "}
+                  and{" "}
+                  <Link href="/privacy" target="_blank" style={{ fontWeight: 600 }}>
+                    Privacy Policy
+                  </Link>
+                  .
+                </span>
+              </label>
+            </div>
+            <div className="nx-field is-full" style={{ alignItems: "center" }}>
+              <CaptchaWidget key={captchaKey} onToken={setCaptchaToken} />
             </div>
 
             {error && (
@@ -180,7 +221,12 @@ function RegisterInner() {
             )}
 
             <div className="nx-field is-full">
-              <button type="submit" className="nx-btn nx-btn-dark" disabled={submitting} style={{ width: "100%" }}>
+              <button
+                type="submit"
+                className="nx-btn nx-btn-dark"
+                disabled={submitting || !acceptTerms || (isCaptchaEnabled() && !captchaToken)}
+                style={{ width: "100%" }}
+              >
                 {submitting ? "Creating account…" : "Create account"}
               </button>
             </div>

@@ -73,6 +73,11 @@ export const resetPasswordRateLimit = appLimit('Too many password reset attempts
   max: 10,
 });
 
+export const verifyEmailRateLimit = appLimit('Too many verification requests. Please try again later.', {
+  windowMs: 60 * 60 * 1000,
+  max: 10,
+});
+
 export const couponValidateRateLimit = appLimit('Too many coupon validation requests. Please try again later.', {
   windowMs: 60 * 1000,
   max: 20,

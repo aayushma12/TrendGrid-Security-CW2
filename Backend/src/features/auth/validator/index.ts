@@ -20,6 +20,9 @@ export const loginSchema = z.object({
 
 export const registerSchema = createUserSchema.omit({ role: true }).extend({
   captchaToken: z.string().optional(),
+  acceptTerms: z
+    .boolean()
+    .refine((v) => v === true, { message: 'You must accept the Terms of Service and Privacy Policy.' }),
 });
 
 export const refreshSchema = z.object({
@@ -69,4 +72,8 @@ export const validateResetTokenQuerySchema = z.object({
 export const resetPasswordSchema = z.object({
   token: z.string().min(1, 'Reset token is required'),
   newPassword: passwordSchema,
+});
+
+export const verifyEmailSchema = z.object({
+  token: z.string().min(1, 'Verification token is required'),
 });

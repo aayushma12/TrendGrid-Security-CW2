@@ -123,3 +123,13 @@ export const resetPasswordController = async (req: Request, res: Response): Prom
   await authService.resetPassword(req.body.token, req.body.newPassword, contextOf(req));
   success(res, null, AUTH_MESSAGES.RESET_PASSWORD_SUCCESS);
 };
+
+export const verifyEmailController = async (req: Request, res: Response): Promise<void> => {
+  await authService.verifyEmail(req.body.token);
+  success(res, null, AUTH_MESSAGES.EMAIL_VERIFIED_SUCCESS);
+};
+
+export const resendVerificationEmailController = async (req: Request, res: Response): Promise<void> => {
+  await authService.resendVerificationEmail(req.user!.id);
+  success(res, null, AUTH_MESSAGES.EMAIL_VERIFICATION_SENT);
+};

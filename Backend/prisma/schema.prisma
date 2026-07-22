@@ -48,19 +48,27 @@ model User {
   /// bcrypt-hashed one-time backup codes, consumed on use.
   mfaBackupCodes String[] @default([])
 
+  // ---- Email verification ----
+  isEmailVerified Boolean   @default(false)
+  emailVerifiedAt DateTime?
+
+  // ---- Terms of Service / Privacy Policy acceptance, captured at registration ----
+  termsAcceptedAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  cart            Cart?
-  wishlist        Wishlist?
-  orders          Order[]
-  reviews         Review[]
-  couponUsages    CouponUsage[]
-  refreshTokens   RefreshToken[]
-  passwordHistory PasswordHistory[]
-  passwordResets  PasswordReset[]
-  emailOtps       EmailOtp[]
-  auditLogs       AuditLog[]
+  cart               Cart?
+  wishlist           Wishlist?
+  orders             Order[]
+  reviews            Review[]
+  couponUsages       CouponUsage[]
+  refreshTokens      RefreshToken[]
+  passwordHistory    PasswordHistory[]
+  passwordResets     PasswordReset[]
+  emailOtps          EmailOtp[]
+  emailVerifications EmailVerification[]
+  auditLogs          AuditLog[]
 
   @@index([email])
   @@index([role])
@@ -165,6 +173,23 @@ model EmailOtp {
   @@index([userId, purpose])
   @@index([expiresAt])
   @@map("email_otps")
+}
+
+/// Registration email-verification links. Same never-store-the-raw-value
+/// principle as PasswordReset — only the SHA-256 hash of the emailed token
+/// is persisted.
+model EmailVerification {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("email_verifications")
 }
 
 model Category {

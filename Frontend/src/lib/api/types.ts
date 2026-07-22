@@ -44,6 +44,7 @@ export interface AuthUser {
   mfaEnabled: boolean;
   /** "totp" | "email" | undefined — which second factor is active, if any. */
   mfaMethod?: string;
+  isEmailVerified: boolean;
   createdAt: string;
   updatedAt: string;
 }

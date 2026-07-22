@@ -17,6 +17,7 @@ async function registerUser(label: string) {
     lastName: label,
     email,
     password,
+    acceptTerms: true,
   });
   return { userId: res.body.data.user.id as string, email, password };
 }

@@ -53,6 +53,9 @@ const schema = z.object({
   PASSWORD_HISTORY_COUNT: z.coerce.number().int().min(0).default(5),
   PASSWORD_RESET_TOKEN_TTL_MIN: z.coerce.number().int().min(1).default(30),
 
+  // Email verification (registration)
+  EMAIL_VERIFICATION_TOKEN_TTL_MIN: z.coerce.number().int().min(1).default(1440),
+
   // Outbound email (forgot-password, security notices). Sending no-ops (logs
   // only) when SMTP_HOST is unset, so local dev isn't blocked — see utils/email.ts.
   SMTP_HOST: z.string().optional(),
@@ -178,6 +181,7 @@ export const env = {
     passwordMaxAgeDays: raw.PASSWORD_MAX_AGE_DAYS,
     passwordHistoryCount: raw.PASSWORD_HISTORY_COUNT,
     passwordResetTokenTtlMin: raw.PASSWORD_RESET_TOKEN_TTL_MIN,
+    emailVerificationTokenTtlMin: raw.EMAIL_VERIFICATION_TOKEN_TTL_MIN,
     mfaIssuer: raw.MFA_ISSUER,
     encryptionKey: raw.ENCRYPTION_KEY,
     captchaProvider: raw.CAPTCHA_PROVIDER,

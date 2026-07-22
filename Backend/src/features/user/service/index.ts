@@ -43,6 +43,7 @@ export const createUser = async (dto: CreateUserDto): Promise<UserResponseDto> =
     phoneNumber: dto.phoneNumber,
     passwordHash,
     role: (dto.role as UserRole) ?? 'USER',
+    termsAcceptedAt: dto.termsAcceptedAt,
   });
 
   return toUserResponseDto(created);

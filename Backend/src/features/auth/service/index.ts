@@ -10,6 +10,8 @@ import { encryptField, decryptField, hashUserAgent, hashToken, generateToken } f
 import { verifyCaptcha } from '../../../utils/captcha';
 import { sendSecurityAlert } from '../../../utils/securityAlert';
 import { sendEmail } from '../../../utils/email';
+import { recordAuditLog } from '../../audit/service';
+import { AUDIT_ACTIONS } from '../../audit/constants';
 
 import { findByEmail, findById, findByIdWithSecurity } from '../../user/repository';
 import * as userRepo from '../../user/repository';
@@ -21,6 +23,7 @@ import * as refreshTokenRepo from '../repository/refreshToken';
 import * as passwordHistoryRepo from '../repository/passwordHistory';
 import * as passwordResetRepo from '../repository/passwordReset';
 import * as emailOtpRepo from '../repository/emailOtp';
+import * as emailVerificationRepo from '../repository/emailVerification';
 import { buildOtpAuthUrl, generateBackupCodes, generateMfaSecret, matchBackupCode, verifyTotp } from '../utils/mfa';
 import { generateEmailOtpCode, hashEmailOtpCode, verifyEmailOtpCode } from '../utils/emailOtp';
 import {
@@ -28,6 +31,8 @@ import {
   buildResetEmailText,
   buildMfaOtpEmailHtml,
   buildMfaOtpEmailText,
+  buildVerifyEmailHtml,
+  buildVerifyEmailText,
 } from '../utils/emailTemplates';
 
 import { AUTH_MESSAGES, getPermissionsForRole } from '../constants';
@@ -58,6 +63,25 @@ const MFA_CHALLENGE_EXPIRES_IN = '5m';
 // outlives the challenge token it belongs to would just fail at the JWT
 // verify step anyway, so there's no reason to give it a separate lifetime.
 const MFA_EMAIL_OTP_TTL_MIN = 5;
+
+const sendVerificationEmail = async (user: Pick<User, 'id' | 'email' | 'firstName'>) => {
+  await emailVerificationRepo.invalidateAllForUser(user.id);
+
+  const rawToken = generateToken();
+  await emailVerificationRepo.create({
+    userId: user.id,
+    tokenHash: hashToken(rawToken),
+    expiresAt: new Date(Date.now() + env.security.emailVerificationTokenTtlMin * 60 * 1000),
+  });
+
+  const verifyUrl = `${env.frontendUrl}/verify-email?token=${rawToken}`;
+  await sendEmail({
+    to: user.email,
+    subject: 'Verify your TrendGrid email address',
+    text: buildVerifyEmailText(user.firstName, verifyUrl, env.security.emailVerificationTokenTtlMin),
+    html: buildVerifyEmailHtml(user.firstName, verifyUrl, env.security.emailVerificationTokenTtlMin),
+  });
+};
 
 const sendMfaOtpEmail = async (user: Pick<User, 'id' | 'email' | 'firstName'>, purpose: emailOtpRepo.EmailOtpPurpose) => {
   await emailOtpRepo.invalidateAllForUser(user.id, purpose);
@@ -122,17 +146,31 @@ export const login = async (
   const user = await findByEmail(dto.email.toLowerCase().trim());
   if (!user) {
     // Same generic error as a wrong password — don't leak whether the email exists.
+    void recordAuditLog({
+      action: AUDIT_ACTIONS.LOGIN_FAILED,
+      status: 'FAILURE',
+      ipAddress: ctx.ip,
+      metadata: { reason: 'unknown_email' },
+    });
     throw new UnauthorizedError(AUTH_MESSAGES.INVALID_CREDENTIALS);
   }
 
   if (user.lockedUntil && user.lockedUntil.getTime() > Date.now()) {
     logger.warn(`Login blocked — account locked email=${user.email} id=${user.id}`);
+    void recordAuditLog({
+      userId: user.id, action: AUDIT_ACTIONS.LOGIN_FAILED, status: 'FAILURE', ipAddress: ctx.ip,
+      metadata: { reason: 'account_locked' },
+    });
     throw new UnauthorizedError(AUTH_MESSAGES.ACCOUNT_LOCKED, [
       { field: 'email', message: AUTH_MESSAGES.ACCOUNT_LOCKED, code: 'ACCOUNT_LOCKED' },
     ]);
   }
 
   if (!user.isActive) {
+    void recordAuditLog({
+      userId: user.id, action: AUDIT_ACTIONS.LOGIN_FAILED, status: 'FAILURE', ipAddress: ctx.ip,
+      metadata: { reason: 'account_disabled' },
+    });
     throw new UnauthorizedError(AUTH_MESSAGES.ACCOUNT_DISABLED);
   }
 
@@ -145,6 +183,10 @@ export const login = async (
     );
     logger.warn(`Login failed email=${user.email} id=${user.id} attempts=${failedLoginAttempts}`);
     sendSecurityAlert('login_failed', { userId: user.id, email: user.email, failedLoginAttempts });
+    void recordAuditLog({
+      userId: user.id, action: AUDIT_ACTIONS.LOGIN_FAILED, status: 'FAILURE', ipAddress: ctx.ip,
+      metadata: { reason: 'invalid_password', failedLoginAttempts },
+    });
     if (lockedUntil) {
       sendSecurityAlert('account_locked', { userId: user.id, email: user.email, lockedUntil });
     }
@@ -163,6 +205,7 @@ export const login = async (
   }
 
   logger.info(`User login email=${user.email} id=${user.id}`);
+  void recordAuditLog({ userId: user.id, action: AUDIT_ACTIONS.LOGIN, status: 'SUCCESS', ipAddress: ctx.ip });
   return buildAuthResponse(user, ctx);
 };
 
@@ -207,10 +250,17 @@ export const verifyMfaLogin = async (
   if (!ok) {
     logger.warn(`MFA verification failed id=${user.id}`);
     sendSecurityAlert('mfa_failed', { userId: user.id });
+    void recordAuditLog({
+      userId: user.id, action: AUDIT_ACTIONS.LOGIN_FAILED, status: 'FAILURE', ipAddress: ctx.ip,
+      metadata: { reason: 'invalid_mfa_code' },
+    });
     throw new UnauthorizedError(AUTH_MESSAGES.INVALID_MFA_CODE);
   }
 
   logger.info(`MFA verified, login completed id=${user.id}`);
+  void recordAuditLog({
+    userId: user.id, action: AUDIT_ACTIONS.LOGIN, status: 'SUCCESS', ipAddress: ctx.ip, metadata: { mfa: true },
+  });
   return buildAuthResponse(user, ctx);
 };
 
@@ -311,17 +361,40 @@ export const disableMfa = async (userId: string, currentPassword: string): Promi
 };
 
 export const register = async (
-  dto: CreateUserDto & { captchaToken?: string },
+  dto: CreateUserDto & { captchaToken?: string; acceptTerms?: boolean },
   ctx: RequestContext = {},
 ): Promise<AuthTokensResponse> => {
   const captchaOk = await verifyCaptcha(dto.captchaToken, ctx.ip);
   if (!captchaOk) throw new BadRequestError(AUTH_MESSAGES.CAPTCHA_FAILED);
 
-  const user = await userService.createUser({ ...dto, role: 'USER' });
+  const user = await userService.createUser({ ...dto, role: 'USER', termsAcceptedAt: new Date() });
   logger.info(`User registered email=${user.email} id=${user.id}`);
+  void recordAuditLog({ userId: user.id, action: AUDIT_ACTIONS.REGISTER, status: 'SUCCESS', ipAddress: ctx.ip });
   const full = await findById(user.id);
   if (!full) throw new UnauthorizedError(AUTH_MESSAGES.INVALID_CREDENTIALS);
+
+  await sendVerificationEmail(full);
+
   return buildAuthResponse(full, ctx, new Date());
+};
+
+export const verifyEmail = async (token: string): Promise<void> => {
+  const row = await emailVerificationRepo.findValidByTokenHash(hashToken(token));
+  if (!row) throw new BadRequestError(AUTH_MESSAGES.INVALID_VERIFICATION_TOKEN);
+
+  await userRepo.markEmailVerified(row.userId);
+  await emailVerificationRepo.markUsed(row.id);
+  await emailVerificationRepo.invalidateAllForUser(row.userId);
+  logger.info(`Email verified id=${row.userId}`);
+};
+
+export const resendVerificationEmail = async (userId: string): Promise<void> => {
+  const user = await findById(userId);
+  if (!user) throw new UnauthorizedError(AUTH_MESSAGES.INVALID_CREDENTIALS);
+  if (user.isEmailVerified) throw new BadRequestError(AUTH_MESSAGES.EMAIL_ALREADY_VERIFIED);
+
+  await sendVerificationEmail(user);
+  logger.info(`Verification email resent id=${user.id}`);
 };
 
 export const refresh = async (
@@ -406,12 +479,14 @@ export const logout = async (userId: string, refreshToken?: string): Promise<voi
     }
   }
   logger.info(`User logout id=${userId}`);
+  void recordAuditLog({ userId, action: AUDIT_ACTIONS.LOGOUT, status: 'SUCCESS' });
 };
 
 /** Forced invalidation of every active session for this user — "log out everywhere". */
 export const logoutAll = async (userId: string): Promise<void> => {
   await refreshTokenRepo.revokeAllForUser(userId);
   logger.warn(`All sessions revoked id=${userId}`);
+  void recordAuditLog({ userId, action: AUDIT_ACTIONS.LOGOUT, status: 'SUCCESS', metadata: { allSessions: true } });
 };
 
 export const changePassword = async (

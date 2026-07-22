@@ -63,6 +63,61 @@ export const buildMfaOtpEmailHtml = (firstName: string, code: string, ttlMinutes
   </body>
 </html>`;
 
+export const buildVerifyEmailText = (firstName: string, verifyUrl: string, ttlMinutes: number): string =>
+  `Hi ${firstName},\n\n` +
+  `Thanks for creating a TrendGrid account. Confirm this is your email address by clicking the link below:\n\n` +
+  `${verifyUrl}\n\n` +
+  `This link expires in ${ttlMinutes / 60} hours and can only be used once.\n\n` +
+  `If you didn't create this account, you can safely ignore this email.`;
+
+export const buildVerifyEmailHtml = (firstName: string, verifyUrl: string, ttlMinutes: number): string => `
+<!DOCTYPE html>
+<html>
+  <body style="margin:0; padding:0; background:#f4f4f5; font-family:Arial, Helvetica, sans-serif;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="padding:32px 16px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="480" cellpadding="0" cellspacing="0"
+                 style="background:#ffffff; border-radius:12px; padding:32px; max-width:480px; width:100%;">
+            <tr><td style="font-size:18px; font-weight:700; color:#111827; padding-bottom:16px;">TrendGrid</td></tr>
+            <tr><td style="font-size:15px; color:#111827; padding-bottom:8px;">Hi ${escapeHtml(firstName)},</td></tr>
+            <tr>
+              <td style="font-size:14px; color:#374151; line-height:1.6; padding-bottom:24px;">
+                Thanks for creating a TrendGrid account. Confirm this is your email address to finish setting up your account.
+              </td>
+            </tr>
+            <tr>
+              <td align="center" style="padding-bottom:24px;">
+                <a href="${verifyUrl}"
+                   style="display:inline-block; background:#111827; color:#ffffff; text-decoration:none;
+                          font-size:14px; font-weight:600; padding:12px 28px; border-radius:8px;">
+                  Verify email address
+                </a>
+              </td>
+            </tr>
+            <tr>
+              <td style="font-size:13px; color:#6b7280; line-height:1.6; padding-bottom:8px;">
+                Or paste this link into your browser:<br />
+                <a href="${verifyUrl}" style="color:#4f46e5; word-break:break-all;">${verifyUrl}</a>
+              </td>
+            </tr>
+            <tr>
+              <td style="font-size:13px; color:#6b7280; line-height:1.6; padding-bottom:24px;">
+                This link expires in <strong>${ttlMinutes / 60} hours</strong> and can only be used once.
+              </td>
+            </tr>
+            <tr>
+              <td style="font-size:12px; color:#9ca3af; line-height:1.6; border-top:1px solid #e5e7eb; padding-top:16px;">
+                If you didn't create this account, you can safely ignore this email.
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+
 export const buildResetEmailHtml = (firstName: string, resetUrl: string, ttlMinutes: number): string => `
 <!DOCTYPE html>
 <html>

@@ -16,6 +16,7 @@ export interface CreateUserRecord {
   phoneNumber?: string;
   passwordHash: string;
   role: UserRole;
+  termsAcceptedAt?: Date;
 }
 
 export interface UpdateUserRecord {
@@ -47,6 +48,8 @@ const toUser = (r: Omit<PrismaUser, 'passwordHash'>): User => ({
   avatarPublicId: r.avatarPublicId ?? undefined,
   mfaEnabled: r.mfaEnabled,
   mfaMethod: r.mfaMethod ?? undefined,
+  isEmailVerified: r.isEmailVerified,
+  emailVerifiedAt: r.emailVerifiedAt ?? undefined,
   createdAt: r.createdAt,
   updatedAt: r.updatedAt,
 });
@@ -63,6 +66,13 @@ const toUserWithPassword = (r: PrismaUser): UserWithPassword => ({
 
 export const create = async (data: CreateUserRecord): Promise<User> =>
   toUser(await prisma.user.create({ data }));
+
+export const markEmailVerified = async (id: string): Promise<void> => {
+  await prisma.user.update({
+    where: { id },
+    data: { isEmailVerified: true, emailVerifiedAt: new Date() },
+  });
+};
 
 export const findById = async (id: string): Promise<User | null> => {
   const r = await prisma.user.findFirst({ where: { id, isDeleted: false } });

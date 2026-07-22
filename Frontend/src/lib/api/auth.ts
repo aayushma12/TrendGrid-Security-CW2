@@ -18,6 +18,7 @@ export interface RegisterInput {
   phoneNumber?: string;
   password: string;
   captchaToken?: string;
+  acceptTerms: boolean;
 }
 
 /**
@@ -111,6 +112,7 @@ export async function registerCustomer(input: RegisterInput): Promise<AuthTokens
       email: input.email.trim().toLowerCase(),
       phoneNumber: input.phoneNumber?.trim() || undefined,
       password: input.password,
+      acceptTerms: input.acceptTerms,
       ...(input.captchaToken ? { captchaToken: input.captchaToken } : {}),
     }),
   });
@@ -217,6 +219,18 @@ export async function validateResetToken(token: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+export async function verifyEmail(token: string): Promise<void> {
+  await apiRequest("/auth/verify-email", {
+    method: "POST",
+    body: JSON.stringify({ token }),
+  });
+}
+
+/** Authenticated — registration auto-signs the account in, so the resend link on /verify-email always has a session to use. */
+export async function resendVerificationEmail(): Promise<void> {
+  await apiRequest("/auth/verify-email/resend", { method: "POST" });
 }
 
 export type { AuthUser };

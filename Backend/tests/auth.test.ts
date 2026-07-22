@@ -24,6 +24,7 @@ async function registerUser(overrides: Partial<{ email: string; password: string
     lastName: 'User',
     email,
     password,
+    acceptTerms: true,
   });
   return { res, email, password };
 }
@@ -56,7 +57,7 @@ describe('POST /auth/register', () => {
     const { email, password } = await registerUser();
     const res = await request(app)
       .post('/api/v1/auth/register')
-      .send({ firstName: 'Dup', lastName: 'User', email, password });
+      .send({ firstName: 'Dup', lastName: 'User', email, password, acceptTerms: true });
     expect(res.status).toBe(409);
   });
 });

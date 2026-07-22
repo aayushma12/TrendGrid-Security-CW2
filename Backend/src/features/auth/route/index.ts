@@ -8,6 +8,7 @@ import {
   refreshRateLimit,
   registerRateLimit,
   resetPasswordRateLimit,
+  verifyEmailRateLimit,
 } from '../../../middleware/rateLimit';
 
 import {
@@ -26,8 +27,10 @@ import {
   mfaVerifyLoginController,
   refreshController,
   registerController,
+  resendVerificationEmailController,
   resetPasswordController,
   validateResetTokenController,
+  verifyEmailController,
 } from '../controller';
 import {
   changePasswordSchema,
@@ -42,6 +45,7 @@ import {
   registerSchema,
   resetPasswordSchema,
   validateResetTokenQuerySchema,
+  verifyEmailSchema,
 } from '../validator';
 
 const router = Router();
@@ -176,6 +180,22 @@ defineRoutes(router, [
     preAuth: [resetPasswordRateLimit],
     schema: { body: resetPasswordSchema },
     handler: resetPasswordController,
+  },
+  {
+    method: 'post',
+    path: '/verify-email',
+    auth: 'public',
+    preAuth: [verifyEmailRateLimit],
+    schema: { body: verifyEmailSchema },
+    handler: verifyEmailController,
+  },
+  {
+    method: 'post',
+    path: '/verify-email/resend',
+    auth: 'authenticated',
+    preAuth: [verifyEmailRateLimit],
+    schema: {},
+    handler: resendVerificationEmailController,
   },
 ]);
 

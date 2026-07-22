@@ -26,6 +26,10 @@ export const AUTH_MESSAGES = {
   FORGOT_PASSWORD_SENT: 'If an account exists for that email, a password reset link has been sent.',
   INVALID_RESET_TOKEN: 'This reset link is invalid or has expired. Please request a new one.',
   RESET_PASSWORD_SUCCESS: 'Password reset successfully. Please log in with your new password.',
+  EMAIL_VERIFICATION_SENT: 'Verification email sent. Please check your inbox.',
+  EMAIL_VERIFIED_SUCCESS: 'Email verified successfully.',
+  EMAIL_ALREADY_VERIFIED: 'This email is already verified.',
+  INVALID_VERIFICATION_TOKEN: 'This verification link is invalid or has expired. Please request a new one.',
 } as const;
 
 /** Role-based permissions returned on login for client-side UI gating. */
