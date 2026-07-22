@@ -1,6 +1,7 @@
 import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
+import reactHooks from "eslint-plugin-react-hooks";
 
 const eslintConfig = defineConfig([
   ...nextVitals,
@@ -14,6 +15,12 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
   ]),
   {
+    // Explicit plugin registration here, even though eslint-config-next
+    // already registers eslint-plugin-react-hooks — a flat-config object
+    // with no `files` glob doesn't reliably inherit an earlier object's
+    // `plugins` map (bit us as "could not find plugin react-hooks" on a
+    // clean install, despite working with a pre-existing node_modules).
+    plugins: { "react-hooks": reactHooks },
     rules: {
       // eslint-config-next pulled this rule in as an error at some point
       // without the existing codebase being triaged against it — it fires
