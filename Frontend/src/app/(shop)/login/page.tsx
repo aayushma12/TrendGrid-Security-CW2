@@ -10,7 +10,7 @@ import { isStaffRole } from "@/lib/roles";
 import { isMfaChallenge } from "@/lib/api/types";
 import type { AuthUser } from "@/lib/api/types";
 import { resendMfaLoginOtp } from "@/lib/api/auth";
-import { CaptchaWidget } from "@/components/auth/CaptchaWidget";
+import { CaptchaWidget, isCaptchaEnabled } from "@/components/auth/CaptchaWidget";
 
 function LoginInner() {
   const router = useRouter();
@@ -19,6 +19,7 @@ function LoginInner() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [captchaToken, setCaptchaToken] = useState<string | undefined>(undefined);
+  const [captchaKey, setCaptchaKey] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [errorCode, setErrorCode] = useState<string | undefined>(undefined);
   const [submitting, setSubmitting] = useState(false);
@@ -55,6 +56,12 @@ function LoginInner() {
     e.preventDefault();
     setError(null);
     setErrorCode(undefined);
+
+    if (isCaptchaEnabled() && !captchaToken) {
+      setError("Please complete the CAPTCHA verification before signing in.");
+      return;
+    }
+
     setSubmitting(true);
     try {
       const result = await login({ email, password, captchaToken });
@@ -67,6 +74,11 @@ function LoginInner() {
     } catch (err) {
       setError(formatAuthError(err));
       setErrorCode(getAuthErrorCode(err));
+      // Single-use token — whether login failed because of the CAPTCHA
+      // itself or an unrelated reason (bad password, locked account), the
+      // token is now stale. Force a fresh, unchecked widget.
+      setCaptchaToken(undefined);
+      setCaptchaKey((k) => k + 1);
     } finally {
       setSubmitting(false);
     }
@@ -109,27 +121,31 @@ function LoginInner() {
           <nav className="nx-crumbs" aria-label="Breadcrumb">
             <Link href="/">Home</Link>
             <span aria-hidden>/</span>
-            <span>Sign in</span>
+            <span>{mfaToken ? "Verify" : "Sign in"}</span>
           </nav>
 
           <div className="nx-page-head">
-            <h1 className="nx-page-title">Sign in</h1>
+            <h1 className="nx-page-title">{mfaToken ? "Multi-Factor Authentication" : "Sign in"}</h1>
             <p style={{ color: "var(--nx-muted, #6b7280)", marginTop: 4 }}>
               {mfaToken
-                ? mfaMethod === "email"
-                  ? "Enter the 6-digit code we emailed you."
-                  : "Enter the 6-digit code from your authenticator app."
+                ? "Your account is protected with an additional layer of security."
                 : "Sign in to view your orders and track deliveries."}
             </p>
           </div>
 
           {mfaToken ? (
             <form className="nx-form-card" onSubmit={onSubmitMfa}>
-              <div className="nx-field is-full">
-                <label htmlFor="mfa-code">Verification code</label>
+              <div className="nx-field is-full" style={{ alignItems: "center", textAlign: "center" }}>
+                <p style={{ fontSize: 13.5, color: "var(--nx-ink-soft, #6b6b66)", margin: "0 0 4px" }}>
+                  {mfaMethod === "email"
+                    ? "A verification code has been sent to your registered email address."
+                    : "Open your authenticator app and enter the current 6-digit code."}
+                </p>
+                <label htmlFor="mfa-code" style={{ marginTop: 8 }}>Enter your verification code</label>
                 <input
                   id="mfa-code"
                   className="nx-input"
+                  style={{ fontSize: 24, letterSpacing: "0.5em", textAlign: "center", fontVariantNumeric: "tabular-nums", maxWidth: 240 }}
                   inputMode="numeric"
                   autoComplete="one-time-code"
                   autoFocus
@@ -139,24 +155,6 @@ function LoginInner() {
                   placeholder="123456"
                   maxLength={16}
                 />
-                {mfaMethod === "email" ? (
-                  <p style={{ fontSize: 12, color: "var(--nx-muted, #6b7280)", marginTop: 6 }}>
-                    Didn&apos;t get it?{" "}
-                    <button
-                      type="button"
-                      onClick={onResend}
-                      disabled={resendStatus === "sending"}
-                      style={{ color: "inherit", textDecoration: "underline", background: "none", border: "none", padding: 0, cursor: "pointer", font: "inherit" }}
-                    >
-                      {resendStatus === "sending" ? "Sending…" : resendStatus === "sent" ? "Sent — check your inbox" : "Resend code"}
-                    </button>{" "}
-                    or use one of your backup codes instead.
-                  </p>
-                ) : (
-                  <p style={{ fontSize: 12, color: "var(--nx-muted, #6b7280)", marginTop: 6 }}>
-                    Lost access to your app? You can use one of your backup codes instead.
-                  </p>
-                )}
               </div>
 
               {error && (
@@ -168,7 +166,7 @@ function LoginInner() {
               <div className="nx-field is-full" style={{ display: "flex", gap: 10 }}>
                 <button
                   type="button"
-                  className="nx-btn"
+                  className="nx-btn nx-btn-ghost"
                   onClick={() => {
                     setMfaToken(null);
                     setMfaMethod(null);
@@ -182,6 +180,28 @@ function LoginInner() {
                 <button type="submit" className="nx-btn nx-btn-dark" disabled={submitting} style={{ flex: 1 }}>
                   {submitting ? "Verifying…" : "Verify"}
                 </button>
+              </div>
+
+              <div className="nx-field is-full" style={{ textAlign: "center", marginTop: 4 }}>
+                <p style={{ fontSize: 12.5, color: "var(--nx-muted, #6b7280)", margin: 0 }}>
+                  <strong style={{ color: "var(--nx-ink-soft, #6b6b66)" }}>Need help?</strong>{" "}
+                  {mfaMethod === "email" ? (
+                    <>
+                      Didn&apos;t get it?{" "}
+                      <button
+                        type="button"
+                        onClick={onResend}
+                        disabled={resendStatus === "sending"}
+                        style={{ color: "inherit", textDecoration: "underline", background: "none", border: "none", padding: 0, cursor: "pointer", font: "inherit" }}
+                      >
+                        {resendStatus === "sending" ? "Sending…" : resendStatus === "sent" ? "Sent — check your inbox" : "Resend code"}
+                      </button>{" "}
+                      or use one of your backup codes instead.
+                    </>
+                  ) : (
+                    "Lost access to your app? You can use one of your backup codes instead."
+                  )}
+                </p>
               </div>
             </form>
           ) : (
@@ -218,8 +238,8 @@ function LoginInner() {
                 />
               </div>
 
-              <div className="nx-field is-full">
-                <CaptchaWidget onToken={setCaptchaToken} />
+              <div className="nx-field is-full" style={{ alignItems: "center" }}>
+                <CaptchaWidget key={captchaKey} onToken={setCaptchaToken} />
               </div>
 
               {error && (
@@ -235,7 +255,12 @@ function LoginInner() {
               )}
 
               <div className="nx-field is-full">
-                <button type="submit" className="nx-btn nx-btn-dark" disabled={submitting} style={{ width: "100%" }}>
+                <button
+                  type="submit"
+                  className="nx-btn nx-btn-dark"
+                  disabled={submitting || (isCaptchaEnabled() && !captchaToken)}
+                  style={{ width: "100%" }}
+                >
                   {submitting ? "Signing in…" : "Sign in"}
                 </button>
               </div>

@@ -20,12 +20,23 @@ const apiOrigin = (() => {
 // backend makes for Swagger UI on the same grounds.
 const csp = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline'",
+  // 'unsafe-eval' is dev-only — Next.js/Turbopack's dev-mode React DevTools
+  // instrumentation uses eval() to reconstruct stack traces across module
+  // boundaries. React never uses eval() in production, so prod keeps the
+  // stricter script-src with no eval allowance.
+  // https://www.google.com/recaptcha + https://www.gstatic.com/recaptcha are
+  // reCAPTCHA v2's own script/render hosts (CaptchaWidget.tsx) — without
+  // these the widget script itself is CSP-blocked, not just the token call.
+  `script-src 'self' 'unsafe-inline' https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/${process.env.NODE_ENV === "development" ? " 'unsafe-eval'" : ""}`,
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' https://fonts.gstatic.com data:",
   // Matches the images.remotePatterns list below — keep the two in sync.
   "img-src 'self' data: https://picsum.photos https://images.unsplash.com https://fastly.picsum.photos https://res.cloudinary.com",
-  `connect-src 'self' ${apiOrigin}`,
+  `connect-src 'self' ${apiOrigin} https://www.google.com`,
+  // The reCAPTCHA checkbox/challenge itself renders inside a google.com
+  // iframe — with no frame-src at all this falls back to default-src 'self'
+  // and silently blocks the widget even once the script above loads fine.
+  "frame-src 'self' https://www.google.com/recaptcha/",
   "object-src 'none'",
   "base-uri 'self'",
   "frame-ancestors 'self'",
