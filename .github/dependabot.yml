@@ -4,7 +4,10 @@ updates:
     directory: "/Backend"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 10
+    # 0 = still scans and reports on Security tab, but never opens a PR/branch
+    # on its own — keeps the repo to a single `main` branch. Raise this if you
+    # want Dependabot to actively propose version-bump PRs again.
+    open-pull-requests-limit: 0
     groups:
       dev-dependencies:
         dependency-type: "development"
@@ -16,7 +19,10 @@ updates:
     directory: "/Frontend"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 10
+    # 0 = still scans and reports on Security tab, but never opens a PR/branch
+    # on its own — keeps the repo to a single `main` branch. Raise this if you
+    # want Dependabot to actively propose version-bump PRs again.
+    open-pull-requests-limit: 0
     groups:
       dev-dependencies:
         dependency-type: "development"
@@ -32,6 +38,7 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 0
     labels:
       - "dependencies"
       - "ci"
