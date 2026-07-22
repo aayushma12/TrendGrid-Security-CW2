@@ -54,11 +54,47 @@ export const updateUserController = async (req: Request, res: Response): Promise
     throw new ForbiddenError('Only administrators can change a user\'s role.');
   }
 
+  // Same reasoning as role above — isActive is a privileged account-status
+  // field (a non-ADMIN EDITOR could otherwise disable/re-enable ANY account,
+  // including an ADMIN's, without ever touching the role field itself).
+  if (req.body.isActive !== undefined && req.user?.role !== 'ADMIN') {
+    sendSecurityAlert('role_escalation_attempt', {
+      actorId: req.user?.id,
+      actorRole: req.user?.role,
+      targetUserId: req.params.id,
+      requestedIsActive: req.body.isActive,
+    });
+    throw new ForbiddenError('Only administrators can change an account\'s active status.');
+  }
+
   const user = await userService.updateUser(req.params.id, req.body);
   if (req.body.role !== undefined) {
     logger.warn(`AUDIT role changed by admin=${req.user?.id} target=${req.params.id} newRole=${req.body.role}`);
   }
+  if (req.body.isActive !== undefined) {
+    logger.warn(`AUDIT active status changed by admin=${req.user?.id} target=${req.params.id} isActive=${req.body.isActive}`);
+  }
   success(res, user, 'User updated successfully.');
+};
+
+/** Self-service — the authenticated user editing their own profile. Only
+ *  firstName/lastName/phoneNumber can ever reach here (see
+ *  updateOwnProfileSchema); there is no role/isActive field to guard against. */
+export const updateOwnProfileController = async (req: Request, res: Response): Promise<void> => {
+  const user = await userService.updateUser(req.user!.id, req.body);
+  success(res, user, 'Profile updated successfully.');
+};
+
+/** "Download my data" — full privacy export of the caller's own account. */
+export const exportMyDataController = async (req: Request, res: Response): Promise<void> => {
+  const data = await userService.exportUserData(req.user!.id);
+  success(res, data, 'Data export ready.');
+};
+
+/** "Restore profile backup" — validated + allowlisted by importProfileSchema before this ever runs. */
+export const importMyDataController = async (req: Request, res: Response): Promise<void> => {
+  const user = await userService.importUserData(req.user!.id, req.body);
+  success(res, user, 'Profile restored successfully.');
 };
 
 export const deleteUserController = async (req: Request, res: Response): Promise<void> => {

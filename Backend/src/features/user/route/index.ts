@@ -10,16 +10,21 @@ import { memoryUploader } from '../../../config/cloudinary';
 import {
   createUserController,
   deleteUserController,
+  exportMyDataController,
   getUserController,
   getUsersController,
+  importMyDataController,
   removeUserAvatarController,
   resetUserMfaController,
+  updateOwnProfileController,
   updateUserController,
   uploadUserAvatarController,
 } from '../controller';
 import {
   createUserSchema,
+  importProfileSchema,
   listUsersQuerySchema,
+  updateOwnProfileSchema,
   updateUserSchema,
   userIdParamsSchema,
 } from '../validator';
@@ -43,6 +48,30 @@ defineRoutes(router, [
     auth: 'ADMIN',
     schema: { body: createUserSchema },
     handler: createUserController,
+  },
+  {
+    method: 'patch',
+    path: '/me',
+    // Self-service profile edit — allowlisted to firstName/lastName/phoneNumber
+    // by updateOwnProfileSchema itself (no role/isActive field exists to guard
+    // against here), unlike the staff-only PUT /:id below.
+    auth: 'authenticated',
+    schema: { body: updateOwnProfileSchema },
+    handler: updateOwnProfileController,
+  },
+  {
+    method: 'get',
+    path: '/me/export',
+    auth: 'authenticated',
+    schema: {},
+    handler: exportMyDataController,
+  },
+  {
+    method: 'post',
+    path: '/me/import',
+    auth: 'authenticated',
+    schema: { body: importProfileSchema },
+    handler: importMyDataController,
   },
   {
     method: 'get',

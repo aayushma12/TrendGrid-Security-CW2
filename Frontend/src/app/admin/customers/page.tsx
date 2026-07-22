@@ -64,6 +64,9 @@ function mapUser(u: UserDto): Draft {
 
 export default function CustomersAdmin() {
   const { user: me } = useAuth();
+  // role/isActive changes are ADMIN-only server-side (see PUT /users/:id) —
+  // an EDITOR gets these controls disabled here rather than a confusing 403.
+  const isAdmin = me?.role === "ADMIN";
   const [users, setUsers] = useState<UserDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -148,12 +151,14 @@ export default function CustomersAdmin() {
     setSaving(true);
     try {
       if (d.id) {
+        // role/isActive are ADMIN-only server-side (see PUT /users/:id) — an
+        // EDITOR omits them entirely rather than resending the unchanged
+        // value, which the API would still reject just for being present.
         const res = await updateUser(d.id, {
           firstName: d.firstName,
           lastName: d.lastName,
           phoneNumber: d.phoneNumber || undefined,
-          role: d.role,
-          isActive: d.isActive,
+          ...(isAdmin ? { role: d.role, isActive: d.isActive } : {}),
         });
         setUsers((prev) => prev.map((u) => (u.id === d.id ? res.data : u)));
         showToast(`${d.firstName} ${d.lastName} updated`);
@@ -265,7 +270,14 @@ export default function CustomersAdmin() {
                     <td className="adm-cell-sub">{u.phoneNumber || "—"}</td>
                     <td><Badge tone={ROLE_TONE[u.role]}>{u.role}</Badge></td>
                     <td className="adm-cell-sub">{fmtDate(u.createdAt)}</td>
-                    <td><Toggle checked={u.isActive} onChange={(v) => void toggleActive(u, v)} /></td>
+                    <td>
+                      <Toggle
+                        checked={u.isActive}
+                        onChange={(v) => void toggleActive(u, v)}
+                        disabled={!isAdmin}
+                        label={!isAdmin ? "Only administrators can change active status" : undefined}
+                      />
+                    </td>
                     <td>
                       <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
                         <button className="adm-btn adm-btn-sm" onClick={() => setEditing(mapUser(u))}>Edit</button>
@@ -292,6 +304,7 @@ export default function CustomersAdmin() {
         <UserModal
           draft={editing}
           saving={saving}
+          isAdmin={isAdmin}
           onClose={() => !saving && setEditing(null)}
           onSave={(d) => void save(d)}
           onUploadAvatar={(file) => void handleAvatarUpload(editing.id, file)}
@@ -306,12 +319,14 @@ export default function CustomersAdmin() {
 function UserModal({
   draft,
   saving,
+  isAdmin,
   onClose,
   onSave,
   onUploadAvatar,
 }: {
   draft: Draft;
   saving: boolean;
+  isAdmin: boolean;
   onClose: () => void;
   onSave: (d: Draft) => void;
   onUploadAvatar: (file: File) => void;
@@ -366,9 +381,15 @@ function UserModal({
             <div className="adm-field"><label>Phone</label><input className="adm-input" value={d.phoneNumber} onChange={(e) => set("phoneNumber", e.target.value)} placeholder="Optional" /></div>
             <div className="adm-field">
               <label>Role</label>
-              <select className="adm-select" value={d.role} onChange={(e) => set("role", e.target.value as UserRole)}>
+              <select
+                className="adm-select"
+                value={d.role}
+                disabled={!isAdmin}
+                onChange={(e) => set("role", e.target.value as UserRole)}
+              >
                 {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
               </select>
+              {!isAdmin && <span className="adm-hint">Only administrators can change roles.</span>}
             </div>
           </div>
           {isNew && (
@@ -380,7 +401,12 @@ function UserModal({
           )}
           <div className="adm-switchrow">
             <div className="adm-switchrow-info"><strong>Active</strong><span>Inactive users can&apos;t sign in</span></div>
-            <Toggle checked={d.isActive} onChange={(v) => set("isActive", v)} />
+            <Toggle
+              checked={d.isActive}
+              onChange={(v) => set("isActive", v)}
+              disabled={!isAdmin}
+              label={!isAdmin ? "Only administrators can change active status" : undefined}
+            />
           </div>
         </div>
         <div className="adm-modal-foot">

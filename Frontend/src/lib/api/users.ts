@@ -28,6 +28,20 @@ export interface UpdateUserInput {
   isActive?: boolean;
 }
 
+export interface UpdateOwnProfileInput {
+  firstName?: string;
+  lastName?: string;
+  phoneNumber?: string;
+}
+
+export interface UserDataExport {
+  exportedAt: string;
+  profile: UserDto;
+  orders: unknown[];
+  reviews: unknown[];
+  wishlist: unknown;
+}
+
 export async function listUsers(params: ListUsersParams = {}) {
   const q = new URLSearchParams();
   if (params.page) q.set("page", String(params.page));
@@ -62,6 +76,29 @@ export async function updateUser(id: string, input: UpdateUserInput) {
 
 export async function deleteUser(id: string) {
   await apiRequest<null>(`/users/${id}`, { method: "DELETE" });
+}
+
+/** Self-service — the signed-in user editing their own profile. Only
+ *  firstName/lastName/phoneNumber can ever be sent; there's no role/isActive
+ *  field on this type at all. */
+export async function updateOwnProfile(input: UpdateOwnProfileInput) {
+  return apiRequest<UserDto>("/users/me", {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+/** "Download my data" — full privacy export (profile + orders + reviews + wishlist). */
+export async function exportMyData() {
+  return apiRequest<UserDataExport>("/users/me/export");
+}
+
+/** "Restore profile backup" — server validates strictly and only ever applies firstName/lastName/phoneNumber. */
+export async function importMyData(profile: UpdateOwnProfileInput) {
+  return apiRequest<UserDto>("/users/me/import", {
+    method: "POST",
+    body: JSON.stringify({ profile }),
+  });
 }
 
 export async function uploadUserAvatar(id: string, avatar: File) {

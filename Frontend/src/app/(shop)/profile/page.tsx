@@ -15,6 +15,9 @@ import { MfaEnrollmentCard } from "@/components/auth/MfaEnrollmentCard";
 import { ChangePasswordForm } from "@/components/auth/ChangePasswordForm";
 import { LogoutAllButton } from "@/components/auth/LogoutAllButton";
 import { PasswordExpiredBanner } from "@/components/auth/PasswordExpiredBanner";
+import { EmailVerifiedBanner } from "@/components/auth/EmailVerifiedBanner";
+import { EditProfileForm } from "@/components/auth/EditProfileForm";
+import { DataPrivacyCard } from "@/components/auth/DataPrivacyCard";
 
 /** /profile — real signed-in account summary + wishlist (wishlist itself stays local — no backend feature for it yet). */
 export default function ProfilePage() {
@@ -65,6 +68,7 @@ export default function ProfilePage() {
             </div>
           ) : (
             <>
+              <EmailVerifiedBanner />
               <PasswordExpiredBanner onChangePassword={() => document.getElementById("security")?.scrollIntoView({ behavior: "smooth" })} />
 
               <div className="nx-profile-hero">
@@ -89,30 +93,7 @@ export default function ProfilePage() {
 
               <div className="nx-profile-grid">
                 <FadeUp>
-                  <div className="nx-form-card">
-                    <h3>Account Details</h3>
-                    <div className="nx-form-grid">
-                      <div className="nx-field">
-                        <label>First name</label>
-                        <input className="nx-input" value={user.firstName} disabled />
-                      </div>
-                      <div className="nx-field">
-                        <label>Last name</label>
-                        <input className="nx-input" value={user.lastName} disabled />
-                      </div>
-                      <div className="nx-field is-full">
-                        <label>Email</label>
-                        <input className="nx-input" value={user.email} disabled />
-                      </div>
-                      <div className="nx-field is-full">
-                        <label>Phone</label>
-                        <input className="nx-input" value={user.phoneNumber ?? ""} placeholder="Not set" disabled />
-                      </div>
-                    </div>
-                    <p className="nx-free-ship" style={{ marginTop: 12 }}>
-                      Account details are managed by our team for now — contact support to update them.
-                    </p>
-                  </div>
+                  <EditProfileForm />
                 </FadeUp>
 
                 <FadeUp delay={0.1}>
@@ -172,6 +153,7 @@ export default function ProfilePage() {
                         </p>
                         <LogoutAllButton redirectTo="/login" />
                       </div>
+                      <DataPrivacyCard />
                     </div>
                   </FadeUp>
                 </div>

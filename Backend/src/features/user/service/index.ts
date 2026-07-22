@@ -16,6 +16,13 @@ import type { UserRole } from '../constants';
 import { USER_AVATAR_SUBFOLDER } from '../constants';
 import { env } from '../../../config/env';
 
+import * as orderRepo from '../../order/repository';
+import { toOrderResponseDto, type OrderResponseDto } from '../../order/dto';
+import * as reviewRepo from '../../review/repository';
+import { toReviewResponseDto, type ReviewResponseDto } from '../../review/dto';
+import * as wishlistRepo from '../../wishlist/repository';
+import { toWishlistResponseDto, type WishlistResponseDto } from '../../wishlist/dto';
+
 const SALT_ROUNDS = env.jwt.saltRounds;
 
 export const createUser = async (dto: CreateUserDto): Promise<UserResponseDto> => {
@@ -136,3 +143,51 @@ export const removeUserAvatar = async (id: string): Promise<UserResponseDto> => 
   const updated = await userRepo.update(id, { avatarUrl: null, avatarPublicId: null });
   return toUserResponseDto(updated!);
 };
+
+export interface UserDataExport {
+  exportedAt: string;
+  profile: UserResponseDto;
+  orders: OrderResponseDto[];
+  reviews: ReviewResponseDto[];
+  wishlist: WishlistResponseDto;
+}
+
+/**
+ * "Download my data" — a privacy export of everything the account owns.
+ * Deliberately excludes anything not safe to hand back to the browser as
+ * plain JSON: passwordHash, MFA secret/backup codes, refresh tokens.
+ * UserResponseDto already omits those (see user/dto), so this is safe by
+ * construction rather than by remembering to strip fields here.
+ */
+export const exportUserData = async (userId: string): Promise<UserDataExport> => {
+  const user = await userRepo.findById(userId);
+  if (!user) throw new NotFoundError('User not found');
+
+  const bigPage = { page: 1, limit: 1000, skip: 0, sortBy: 'createdAt', sortOrder: 'desc' as const, filters: {} };
+
+  const [{ items: orders }, { items: reviews }, wishlist] = await Promise.all([
+    orderRepo.findMany({ ...bigPage, sortBy: 'placedAt', filters: { userId } }),
+    reviewRepo.findMany({ ...bigPage, filters: { userId } }),
+    wishlistRepo.getOrCreate(userId),
+  ]);
+
+  return {
+    exportedAt: new Date().toISOString(),
+    profile: toUserResponseDto(user),
+    orders: orders.map(toOrderResponseDto),
+    reviews: reviews.map(toReviewResponseDto),
+    wishlist: toWishlistResponseDto(wishlist),
+  };
+};
+
+/**
+ * "Restore profile backup" — applies only the safe, self-service profile
+ * fields (firstName/lastName/phoneNumber). The validator (importProfileSchema,
+ * `.strict()`) already rejects a backup containing any other field before
+ * this ever runs, so this is a thin wrapper over the same safe update path
+ * as PATCH /users/me.
+ */
+export const importUserData = async (
+  userId: string,
+  dto: { profile: { firstName?: string; lastName?: string; phoneNumber?: string } },
+): Promise<UserResponseDto> => updateUser(userId, dto.profile);
