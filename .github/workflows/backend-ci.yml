@@ -1,10 +1,20 @@
-name: CI
+name: Backend CI
 
 on:
   push:
     branches: ["**"]
+    paths:
+      - "Backend/**"
+      - ".github/workflows/backend-ci.yml"
   pull_request:
     branches: ["**"]
+    paths:
+      - "Backend/**"
+      - ".github/workflows/backend-ci.yml"
+
+defaults:
+  run:
+    working-directory: Backend
 
 jobs:
   build-and-test:
@@ -42,6 +52,7 @@ jobs:
         with:
           node-version: "20"
           cache: "npm"
+          cache-dependency-path: Backend/package-lock.json
 
       - name: Install dependencies
         run: npm ci
@@ -76,7 +87,7 @@ jobs:
       - name: Build production image
         uses: docker/build-push-action@v6
         with:
-          context: .
+          context: ./Backend
           push: false
           tags: ndh-trendgrid-api:ci
 
