@@ -19,6 +19,7 @@ import orderRoutes from '../features/order/route';
 import reviewRoutes from '../features/review/route';
 import homepageRoutes from '../features/homepage/route';
 import settingsRoutes from '../features/settings/route';
+import auditRoutes from '../features/audit/route';
 
 import healthRoutes from './healthRoutes';
 
@@ -53,5 +54,6 @@ router.use('/reviews', reviewRoutes);
 // Content
 router.use('/homepage', homepageRoutes);
 router.use('/settings', settingsRoutes);
+router.use('/audit-logs', auditRoutes);
 
 export default router;

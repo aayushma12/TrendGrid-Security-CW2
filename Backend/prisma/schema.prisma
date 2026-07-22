@@ -60,11 +60,39 @@ model User {
   passwordHistory PasswordHistory[]
   passwordResets  PasswordReset[]
   emailOtps       EmailOtp[]
+  auditLogs       AuditLog[]
 
   @@index([email])
   @@index([role])
   @@index([isDeleted])
   @@map("users")
+}
+
+enum AuditLogStatus {
+  SUCCESS
+  FAILURE
+}
+
+/// General-purpose activity/security audit trail — who did what, from where,
+/// with what result. Deliberately narrow: NEVER store passwords, OTPs,
+/// refresh/access tokens, or payment card data here (see
+/// features/audit/service `recordAuditLog`'s doc comment). `userId` is
+/// nullable because some events (e.g. a failed login against an email that
+/// doesn't exist) have no resolvable account.
+model AuditLog {
+  id        String         @id @default(uuid())
+  userId    String?
+  user      User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action    String
+  ipAddress String?
+  status    AuditLogStatus
+  metadata  Json?
+  createdAt DateTime       @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
 }
 
 /// Issued refresh tokens — enables rotation-on-use and server-side revocation
