@@ -22,6 +22,10 @@
 
 # misc
 .DS_Store
+.DS_Store?
+Thumbs.db
+ehthumbs.db
+Desktop.ini
 *.pem
 
 # debug
@@ -29,9 +33,12 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+logs/
+*.log
 
-# env files (can opt-in for committing if needed)
+# env files (never commit real secrets — .env.example is a safe, tracked template)
 .env*
+!.env.example
 
 # vercel
 .vercel
@@ -39,6 +46,24 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# backup / temp files
+*.bak
+*.orig
+*.tmp
+tmp/
+temp/
+
+# caches
+.cache/
+.eslintcache
 
 # FUSE sync ghosts
 .fuse_hidden*

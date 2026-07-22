@@ -1,7 +1,16 @@
+# ---------- Dependencies ----------
 node_modules/
+
+# ---------- Build output ----------
 dist/
 build/
+*.tsbuildinfo
+
+# ---------- Test / coverage output ----------
 coverage/
+.nyc_output/
+
+# ---------- Environment files (never commit real secrets) ----------
 .env
 .env.local
 .env.*.local
@@ -9,14 +18,39 @@ coverage/
 .env.production
 .env.test
 !.env.example
+
+# ---------- Logs ----------
+logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
+
+# ---------- OS-generated files ----------
 .DS_Store
+.DS_Store?
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ---------- Editor / IDE ----------
 .vscode/
 .idea/
 *.swp
 *.swo
+*~
+
+# ---------- Caches ----------
 .cache/
+.eslintcache
+
+# ---------- Backup / temp files ----------
+*.bak
+*.orig
+*.tmp
 tmp/
+temp/
+
+# ---------- Misc ----------
+*.pid
