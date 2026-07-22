@@ -75,3 +75,7 @@ temp/
 # ---------- Misc ----------
 *.pem
 .vercel
+
+# ---------- Academic report / coursework documentation ----------
+# Kept locally, intentionally excluded from the source repository.
+/report/
