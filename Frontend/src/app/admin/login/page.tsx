@@ -185,9 +185,11 @@ export default function AdminLoginPage() {
           </form>
         )}
 
-        <p className="adm-login-hint">
-          API: {process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000/api/v1"}
-        </p>
+        {process.env.NODE_ENV !== "production" && (
+          <p className="adm-login-hint">
+            API: {process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000/api/v1"}
+          </p>
+        )}
       </div>
     </div>
   );

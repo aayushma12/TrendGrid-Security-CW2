@@ -841,6 +841,7 @@
   transform: scale(1.045);
 }
 .nx-stat {
+  position: relative;
   border: 1px solid var(--nx-line);
   border-radius: var(--nx-radius);
   background: var(--nx-surface);
@@ -848,9 +849,20 @@
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  min-height: 180px;
+  min-height: 156px;
   height: 100%;
+  box-shadow: 0 2px 10px rgba(20, 20, 15, 0.05);
   transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.3s ease;
+}
+.nx-stat::before {
+  content: "";
+  position: absolute;
+  top: 24px;
+  right: 26px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--nx-accent);
 }
 .nx-stat:hover {
   transform: translateY(-4px);
@@ -858,7 +870,7 @@
 }
 .nx-stat-value {
   font-family: var(--nx-display);
-  font-size: clamp(2.2rem, 4vw, 3.3rem);
+  font-size: clamp(2.6rem, 4.6vw, 3.6rem);
   font-weight: 700;
   letter-spacing: -0.03em;
   line-height: 1;
@@ -2658,6 +2670,7 @@ html[data-nx-theme="dark"] .nx-stars {
   border: 1px solid var(--nx-line);
   border-radius: var(--nx-radius-lg);
   background: var(--nx-surface);
+  box-shadow: 0 2px 10px rgba(20, 20, 15, 0.05);
 }
 .nx-form-card + .nx-form-card {
   margin-top: 18px;
