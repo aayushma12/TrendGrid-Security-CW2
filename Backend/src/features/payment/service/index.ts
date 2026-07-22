@@ -24,6 +24,8 @@ import { BadRequestError, ForbiddenError, NotFoundError } from '../../../utils/e
 import { round2 } from '../../../utils/money';
 import * as orderRepo from '../../order/repository';
 import * as paymentRepo from '../repository';
+import { recordAuditLog } from '../../audit/service';
+import { AUDIT_ACTIONS } from '../../audit/constants';
 import type { EsewaCallbackPayload, EsewaFormFieldsResponseDto, VerifyEsewaResultDto } from '../dto';
 import { ESEWA_SIGNED_FIELD_NAMES, PAYMENT_MESSAGES } from '../constants';
 
@@ -157,6 +159,13 @@ export const handleEsewaSuccess = async (data: string): Promise<VerifyEsewaResul
 
   logger.info(`eSewa payment ${isComplete ? 'verified' : 'NOT confirmed'} orderId=${order.id} transactionUuid=${payload.transaction_uuid} status=${confirmed.status}`);
 
+  void recordAuditLog({
+    userId: order.userId,
+    action: isComplete ? AUDIT_ACTIONS.PAYMENT_COMPLETED : AUDIT_ACTIONS.PAYMENT_FAILED,
+    status: isComplete ? 'SUCCESS' : 'FAILURE',
+    metadata: { orderId: order.id, amount: order.grandTotal, transactionUuid: payload.transaction_uuid },
+  });
+
   return {
     orderId: order.id,
     orderNumber: order.orderNumber,
@@ -182,6 +191,27 @@ export const handleEsewaFailure = async (data?: string): Promise<{ orderId: stri
   await paymentRepo.markVerified(payload.transaction_uuid, {
     status: 'FAILED',
     gatewayResponse: payload as unknown as Record<string, string>,
+  });
+
+  // Reflect the failure on the order itself (not just the transaction row) so
+  // the customer sees a "payment failed, retry" state rather than the order
+  // silently sitting at PENDING forever. Order.status is left untouched —
+  // paymentMethod ESEWA orders stay retryable (initiateEsewaPayment only
+  // blocks a NEW attempt once paymentStatus is already PAID).
+  const order = await orderRepo.findById(txn.orderId);
+  if (order && order.paymentStatus !== 'PAID') {
+    await orderRepo.updateWithHistory(
+      order.id,
+      { paymentStatus: 'FAILED', failedAt: new Date() },
+      { status: order.status, updatedBy: 'SYSTEM', note: `eSewa payment failed/cancelled (transaction ${payload.transaction_uuid})` },
+    );
+  }
+
+  void recordAuditLog({
+    userId: order?.userId,
+    action: AUDIT_ACTIONS.PAYMENT_FAILED,
+    status: 'FAILURE',
+    metadata: { orderId: txn.orderId, transactionUuid: payload.transaction_uuid },
   });
 
   logger.info(`eSewa payment failed/cancelled orderId=${txn.orderId} transactionUuid=${payload.transaction_uuid}`);
