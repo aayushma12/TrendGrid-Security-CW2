@@ -51,8 +51,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: "npm"
-          cache-dependency-path: Backend/package-lock.json
+          # No npm cache — see frontend-ci.yml for why: a stale/incomplete
+          # restored cache silently broke bin-linking for at least one
+          # package there despite `npm ci` reporting success. Not worth the
+          # same risk here for the modest speedup.
 
       - name: Install dependencies
         run: npm ci
