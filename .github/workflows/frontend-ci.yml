@@ -46,18 +46,20 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-          # No npm cache here on purpose — actions/setup-node's cache: npm
-          # restored a stale/incomplete ~/.npm on this repo (most likely
-          # saved from an earlier run that failed mid-install) that left
-          # node_modules/.bin/eslint missing on every subsequent run despite
-          # `npm ci` itself reporting success. Confirmed via a debug step
-          # that dumped the actual state: the binary genuinely didn't exist,
-          # and `npx eslint` silently fell back to downloading an unrelated
-          # eslint 10.x from the registry instead of using the pinned ^9.
-          # A full uncached install every run costs some time but is correct.
 
       - name: Install dependencies
-        run: npm ci
+        # --include=dev is required here: the job env below sets
+        # NODE_ENV=production (so later steps like Build behave like a real
+        # production build), but npm ci reads that same env var and quietly
+        # skips devDependencies entirely when it's set — no error, no
+        # warning, it just installs the ~212 production packages instead of
+        # the full set. eslint, typescript, tsx, etc. are all devDependencies,
+        # so the Lint step then failed with "eslint: not found" (exit 127)
+        # even though `npm ci` itself reported success on every run.
+        # Confirmed by reproducing locally: `NODE_ENV=production npm ci`
+        # installs node_modules with no eslint at all; adding --include=dev
+        # restores it.
+        run: npm ci --include=dev
 
       - name: Generate Prisma client
         run: npm run db:generate
