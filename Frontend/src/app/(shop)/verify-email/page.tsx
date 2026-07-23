@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { NexaHeader } from "@/components/home-nexa/NexaHeader";
@@ -20,11 +20,24 @@ function VerifyEmailInner() {
   const [resending, setResending] = useState(false);
   const [resendError, setResendError] = useState<string | null>(null);
 
+  // Guards against React Strict Mode's dev-only double-invoke of this
+  // effect. Unlike a `let cancelled` local (which only stops a stale
+  // response from updating state), this stops the *second* call from ever
+  // firing — the verification token is single-use, so a real second network
+  // call would get "already used" back from the server and could easily be
+  // the one that resolves last, showing a false failure even though the
+  // first call already succeeded. Refs survive Strict Mode's mount →
+  // cleanup → remount cycle, so this only fires once per token per mount.
+  const requestedTokenRef = useRef<string | null>(null);
+
   useEffect(() => {
     if (!token) {
       setState("invalid");
       return;
     }
+    if (requestedTokenRef.current === token) return;
+    requestedTokenRef.current = token;
+
     let cancelled = false;
     verifyEmail(token)
       .then(() => {
