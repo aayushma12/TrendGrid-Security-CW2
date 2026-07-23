@@ -18,6 +18,15 @@ COPY . .
 # service hostname.
 ARG NEXT_PUBLIC_API_URL=http://localhost:5000/api/v1
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+# prisma.config.ts (Prisma 7) hard-fails to even load if DATABASE_URL isn't
+# resolvable at all — not just unreachable, genuinely unset throws a
+# PrismaConfigEnvError before generation starts. .dockerignore correctly
+# excludes .env* from the build context, so there's nothing to read it from
+# here. `generate` never actually connects to the database, it only needs
+# the URL to be a syntactically present string — this placeholder is never
+# used for a real connection and doesn't survive into the runtime stage
+# (multi-stage builds don't inherit ENV across a FROM boundary).
+ENV DATABASE_URL="postgresql://placeholder:placeholder@localhost:5432/placeholder"
 RUN npx prisma generate
 RUN npm run build
 
